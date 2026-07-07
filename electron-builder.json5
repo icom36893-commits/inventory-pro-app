@@ -3,6 +3,7 @@
   "appId": "com.inventorypro.app",
   "productName": "المخزون برو",
   "asar": true,
+  "npmRebuild": false,
   "directories": {
     "output": "release/${version}"
   },
@@ -16,11 +17,14 @@
     "icon": "public/logo.png"
   },
   "nsis": {
+    "artifactName": "Setup inventory.${ext}",
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
     "installerLanguages": ["ar"],
-    "language": "1025"
+    "language": "1025",
+    "license": "buildResources/features.txt"
   },
   "extraResources": [
     {
