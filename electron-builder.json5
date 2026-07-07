@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.inventorypro.app",
+  "productName": "المخزون برو",
+  "asar": true,
+  "directories": {
+    "output": "release/${version}"
+  },
+  "files": [
+    "dist",
+    "dist-electron",
+    "database/schema.sql"
+  ],
+  "win": {
+    "target": "nsis",
+    "icon": "public/logo.png"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "installerLanguages": ["ar"],
+    "language": "1025"
+  },
+  "extraResources": [
+    {
+      "from": "database/schema.sql",
+      "to": "database/schema.sql"
+    }
+  ]
+}

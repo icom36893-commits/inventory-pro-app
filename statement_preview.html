@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>معاينة كشف الحساب</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f9fafb;
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }
+        .page {
+            background-color: #ffffff;
+            width: 297mm; /* Landscape A4 */
+            min-height: 210mm;
+            padding: 25mm;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            color: #1f2937;
+            line-height: 1.5;
+            box-sizing: border-box;
+        }
+        .text-muted { color: #6b7280; }
+        .font-bold { font-weight: 700; }
+        .text-sm { font-size: 14px; }
+        .text-lg { font-size: 18px; }
+        .text-xl { font-size: 24px; }
+        .mb-1 { margin-bottom: 4px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mb-8 { margin-bottom: 32px; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 32px;
+        }
+        th {
+            text-align: right;
+            padding: 12px 8px;
+            border: 1px solid #d1d5db;
+            background-color: #f3f4f6;
+            color: #374151;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        td {
+            padding: 12px 8px;
+            border: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+        .text-center { text-align: center; }
+        .text-left { text-align: left; }
+        
+        @media print {
+            body { background-color: white; padding: 0; }
+            .page { box-shadow: none; width: 100%; min-height: auto; padding: 0; }
+            @page { size: A4 landscape; margin: 1cm; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="page">
+    <!-- Header -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div>
+                    <h1 style="margin: 0 0 4px 0; font-size: 28px; font-weight: 700; color: #111827;">شركة التميز للتجارة العامة</h1>
+                    <p style="margin: 0; color: #6b7280; font-size: 14px;">بغداد - الكرادة - شارع 62</p>
+                    <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 14px;">هاتف: <span dir="ltr">0771 234 5678</span></p>
+                </div>
+            </div>
+            
+            <!-- Customer Card -->
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; width: fit-content; min-width: 250px;">
+                <p style="margin: 0 0 4px 0; font-size: 14px; color: #6b7280;">حساب العميل:</p>
+                <p style="margin: 0; font-size: 18px; font-weight: 700; color: #111827;">محمد وليد جاسم</p>
+            </div>
+        </div>
+
+        <div style="text-align: left;">
+            <h2 style="margin: 0 0 12px 0; font-size: 32px; font-weight: 700; color: #111827;">كشف حساب</h2>
+            <table style="width: auto; margin-left: auto; margin-bottom: 0;">
+                <tr>
+                    <td style="padding: 4px 16px 4px 0; border: none; color: #6b7280; text-align: right;">تاريخ الإصدار:</td>
+                    <td style="padding: 4px 0; border: none; font-weight: 700; text-align: right;">03/07/2026</td>
+                </tr>
+                <tr>
+                    <td style="padding: 4px 16px 4px 0; border: none; color: #6b7280; text-align: right;">الفترة:</td>
+                    <td style="padding: 4px 0; border: none; font-weight: 700; text-align: right;" dir="ltr">01/06/2026 - 30/06/2026</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <table>
+        <thead>
+        <tr>
+            <th>التاريخ</th>
+            <th>نوع الحركة</th>
+            <th class="text-center">رقم المرجع</th>
+            <th class="text-left">مدين (IQD)</th>
+            <th class="text-left">دائن (IQD)</th>
+            <th class="text-left">الرصيد (IQD)</th>
+        </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>01/06/2026</td>
+                <td>فاتورة مبيعات</td>
+                <td class="text-center">INV-001</td>
+                <td class="text-left" style="color: #dc2626;">500,000</td>
+                <td class="text-left" style="color: #16a34a;">-</td>
+                <td class="text-left font-bold">500,000</td>
+            </tr>
+            <tr>
+                <td>15/06/2026</td>
+                <td>دفعة/سداد</td>
+                <td class="text-center">PAY-001</td>
+                <td class="text-left" style="color: #dc2626;">-</td>
+                <td class="text-left" style="color: #16a34a;">250,000</td>
+                <td class="text-left font-bold">250,000</td>
+            </tr>
+            <tr>
+                <td>28/06/2026</td>
+                <td>فاتورة مبيعات</td>
+                <td class="text-center">INV-002</td>
+                <td class="text-left" style="color: #dc2626;">150,000</td>
+                <td class="text-left" style="color: #16a34a;">-</td>
+                <td class="text-left font-bold">400,000</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Totals Summary -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; gap: 20px;">
+        <!-- بطاقات اليمين -->
+        <div style="display: flex; gap: 20px;">
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; min-width: 150px;">
+                <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;">إجمالي المدين (عليه):</p>
+                <p style="margin: 0; font-weight: 700; font-size: 18px; color: #111827;">IQD 650,000</p>
+            </div>
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; min-width: 150px;">
+                <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;">إجمالي الدائن (له):</p>
+                <p style="margin: 0; font-weight: 700; font-size: 18px; color: #111827;">IQD 250,000</p>
+            </div>
+        </div>
+        
+        <!-- بطاقة اليسار -->
+        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; min-width: 200px; text-align: left;">
+            <p style="margin: 0 0 8px 0; color: #ef4444; font-size: 14px; font-weight: 700;">الرصيد النهائي:</p>
+            <p style="margin: 0; font-weight: 700; font-size: 24px; color: #dc2626;">IQD 400,000</p>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>
