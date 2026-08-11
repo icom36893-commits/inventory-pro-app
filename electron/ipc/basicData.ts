@@ -78,4 +78,25 @@ export function initBasicDataIpc() {
     await db.run('DELETE FROM treasury_categories WHERE id = ?', [id]);
     return true;
   });
+  // Fund Categories
+  ipcMain.handle('basicData:getFundCategories', async () => {
+    const db = await getDb();
+    return await db.all('SELECT * FROM fund_categories ORDER BY id DESC');
+  });
+
+  ipcMain.handle('basicData:createFundCategory', async (_, data) => {
+    const db = await getDb();
+    const result = await db.run('INSERT INTO fund_categories (name, is_system) VALUES (?, 0)', [data.name]);
+    return result.lastID;
+  });
+
+  ipcMain.handle('basicData:deleteFundCategory', async (_, id) => {
+    const db = await getDb();
+    const cat = await db.get('SELECT is_system FROM fund_categories WHERE id = ?', [id]);
+    if (cat && cat.is_system) {
+      throw new Error('لا يمكن حذف التصنيفات الأساسية للنظام');
+    }
+    await db.run('DELETE FROM fund_categories WHERE id = ?', [id]);
+    return true;
+  });
 }

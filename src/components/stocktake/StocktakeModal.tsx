@@ -34,6 +34,7 @@ const StocktakeModal: React.FC<StocktakeModalProps> = ({ isOpen, onClose }) => {
       loadStocktakes();
       setView('list');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const loadStocktakes = async () => {
@@ -384,3 +385,4 @@ const StocktakeModal: React.FC<StocktakeModalProps> = ({ isOpen, onClose }) => {
 };
 
 export default StocktakeModal;
+

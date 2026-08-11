@@ -11,6 +11,13 @@ export function initUpdaterIpc() {
   ipcMain.handle('updater:check', async () => {
     try {
       const result = await autoUpdater.checkForUpdates();
+      if (!result) {
+        // Dev mode or skipped check. Emit not-available to stop the UI loading spinner.
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+          windows[0].webContents.send('updater:not-available');
+        }
+      }
       return result;
     } catch (error: any) {
       const windows = BrowserWindow.getAllWindows();
@@ -26,10 +33,10 @@ export function initUpdaterIpc() {
   });
 
   // AutoUpdater events
-  autoUpdater.on('update-available', () => {
+  autoUpdater.on('update-available', (info) => {
     const windows = BrowserWindow.getAllWindows();
     if (windows.length > 0) {
-      windows[0].webContents.send('updater:available');
+      windows[0].webContents.send('updater:available', info?.version);
     }
   });
 

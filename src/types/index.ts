@@ -11,6 +11,7 @@ export interface Product {
   warehouse_id?: number;
   allow_negative_stock?: boolean;
   is_active: boolean;
+  is_initial?: boolean;
 }
 
 export interface Party {
@@ -55,3 +56,41 @@ export interface TreasuryTransaction {
   date: string;
   party_id?: number;
 }
+
+export interface Fund {
+  id: number;
+  name: string;
+  category: string;
+  opening_balance_iqd: number;
+  opening_balance_usd: number;
+  is_system?: number;
+  created_at?: string;
+}
+
+export interface StatementRow {
+  date: string;
+  operation_type: string;
+  movement_type: string;
+  reference_number: string;
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+export interface JournalVoucherEntry {
+  account_type: 'party' | 'fund';
+  account_id: number;
+  debit_iqd: number;
+  credit_iqd: number;
+  debit_usd: number;
+  credit_usd: number;
+  description: string;
+}
+
+export interface JournalVoucher {
+  date: string;
+  notes: string;
+  entries: JournalVoucherEntry[];
+}
+

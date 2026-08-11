@@ -4,11 +4,11 @@ import { persist } from 'zustand/middleware';
 interface LicenseState {
   isSetupComplete: boolean;
   isActivated: boolean;
-  activationType: '14_days' | '1_month' | '1_year' | 'lifetime' | null;
+  activationType: '2_days' | '14_days' | '1_month' | '1_year' | 'lifetime' | null;
   activationDate: string | null;
   expiryDate: string | null;
   setSetupComplete: (status: boolean) => void;
-  activateSystem: (type: '14_days' | '1_month' | '1_year' | 'lifetime', expiry: string) => void;
+  activateSystem: (type: '2_days' | '14_days' | '1_month' | '1_year' | 'lifetime', expiry: string) => void;
   checkActivationStatus: () => void;
   deactivateSystem: () => void;
 }

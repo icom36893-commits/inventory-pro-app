@@ -1,9 +1,12 @@
+import os from 'node:os';
 import { ipcMain, app, dialog, BrowserWindow } from 'electron';
 import { getDb, closeDb } from '../../database/db';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { initTelegramBot } from '../telegramBot';
+import { reInitFirebaseSync } from '../firebaseSync';
+import { reInitMobileCommandProcessor } from '../mobileCommandProcessor';
 
 const isDev = !app.isPackaged;
 const dbPath = isDev 
@@ -11,6 +14,25 @@ const dbPath = isDev
   : path.join(app.getPath('userData'), 'inventory.db');
 
 export function initSettingsIpc() {
+  ipcMain.handle('settings:getLocalIps', async () => {
+    try {
+      const interfaces = os.networkInterfaces();
+      const addresses = [];
+      for (const k in interfaces) {
+        for (const k2 in interfaces[k]) {
+          const address = interfaces[k][k2];
+          if (address.family === 'IPv4' && !address.internal) {
+            addresses.push({ name: k, ip: address.address });
+          }
+        }
+      }
+      return { ips: addresses, hostname: os.hostname() };
+    } catch (error) {
+      console.error('Error fetching IPs:', error);
+      return [];
+    }
+  });
+
   ipcMain.handle('settings:get', async () => {
     try {
       const db = await getDb();
@@ -47,10 +69,52 @@ export function initSettingsIpc() {
       // Reload Telegram Bot if settings changed
       initTelegramBot();
       
+      // Re-initialize Firebase sync and mobile command processor if company_id changed
+      await reInitFirebaseSync();
+      await reInitMobileCommandProcessor();
+      
+      // Manage API Server
+      const settings = await db.get('SELECT local_server_active, local_server_role, local_server_port, server_mode FROM company_settings LIMIT 1');
+      if (settings) {
+        import('../apiServer').then(({ startApiServer, stopApiServer }) => {
+          if (settings.server_mode === 'offline' && settings.local_server_role === 'main' && settings.local_server_active === 1) {
+            startApiServer(parseInt(settings.local_server_port || '3000', 10));
+          } else {
+            stopApiServer();
+          }
+        });
+      }
+      
       return { success: true };
     } catch (error) {
       console.error('Error updating settings:', error);
       throw error;
+    }
+  });
+
+  ipcMain.handle('settings:startCloudTunnel', async (_, port: number) => {
+    try {
+      const { startCloudTunnel } = await import('../apiServer');
+      const url = await startCloudTunnel(port);
+      const db = await getDb();
+      await db.run('UPDATE company_settings SET cloud_tunnel_active = 1, cloud_tunnel_url = ?', url);
+      return { success: true, url };
+    } catch (error: any) {
+      console.error('Error starting cloud tunnel:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('settings:stopCloudTunnel', async () => {
+    try {
+      const { stopCloudTunnel } = await import('../apiServer');
+      stopCloudTunnel();
+      const db = await getDb();
+      await db.run('UPDATE company_settings SET cloud_tunnel_active = 0, cloud_tunnel_url = ""');
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error stopping cloud tunnel:', error);
+      return { success: false, error: error.message };
     }
   });
 
@@ -304,6 +368,60 @@ export function initSettingsIpc() {
     } catch (error: any) {
       console.error('Error closing fiscal year:', error);
       return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('settings:setAutoStart', async (_, enabled: boolean) => {
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      path: app.getPath('exe')
+    });
+    return { success: true };
+  });
+
+  ipcMain.handle('settings:getAutoStart', async () => {
+    return app.getLoginItemSettings().openAtLogin;
+  });
+
+  ipcMain.handle('settings:recalculateBalances', async () => {
+    const db = await getDb();
+    try {
+      await db.run('BEGIN TRANSACTION');
+
+      // Cleanup orphaned party_transactions (e.g. from invoices deleted before the delete logic was updated)
+      await db.run('DELETE FROM party_transactions WHERE type = "invoice" AND reference_id NOT IN (SELECT id FROM invoices)');
+      await db.run('DELETE FROM party_transactions WHERE type = "payment" AND reference_id NOT IN (SELECT id FROM treasury_transactions)');
+      
+      const parties = await db.all('SELECT * FROM parties');
+      for (const party of parties) {
+        let balanceIqd = party.opening_balance_iqd || 0;
+        let balanceUsd = party.opening_balance_usd || 0;
+        const transactions = await db.all('SELECT * FROM party_transactions WHERE party_id = ? ORDER BY date ASC, id ASC', party.id);
+        
+        for (const tx of transactions) {
+          const currency = tx.currency || 'IQD';
+          let change = 0;
+          if (party.type === 'customer') {
+            change = (tx.debit || 0) - (tx.credit || 0);
+          } else if (party.type === 'supplier') {
+            change = (tx.credit || 0) - (tx.debit || 0);
+          }
+          if (currency === 'USD') {
+            balanceUsd += change;
+            await db.run('UPDATE party_transactions SET balance_usd = ?, balance_iqd = ? WHERE id = ?', [balanceUsd, balanceIqd, tx.id]);
+          } else {
+            balanceIqd += change;
+            await db.run('UPDATE party_transactions SET balance_iqd = ?, balance_usd = ? WHERE id = ?', [balanceIqd, balanceUsd, tx.id]);
+          }
+        }
+        await db.run('UPDATE parties SET current_balance_iqd = ?, current_balance_usd = ? WHERE id = ?', [balanceIqd, balanceUsd, party.id]);
+      }
+      await db.run('COMMIT');
+      return { success: true };
+    } catch (error: any) {
+      await db.run('ROLLBACK');
+      console.error('Error recalculating balances:', error);
+      throw error;
     }
   });
 }

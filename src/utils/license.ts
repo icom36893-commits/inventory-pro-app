@@ -1,4 +1,4 @@
-export type ActivationType = '14_days' | '1_month' | '1_year' | 'lifetime';
+export type ActivationType = '2_days' | '14_days' | '1_month' | '1_year' | 'lifetime';
 
 export interface VerifyLicenseResult {
   valid: boolean;
@@ -24,7 +24,7 @@ export async function verifyLicense(serialKey: string): Promise<VerifyLicenseRes
     return { valid: false, error: `صيغة المفتاح غير صحيحة. يجب أن يبدأ بـ ${prefix}` };
   }
 
-  const isValidFormat = /^PRO-2026-[A-Z0-9\-]{5,20}$/.test(cleanSerial);
+  const isValidFormat = /^PRO-2026-[A-Z0-9-]{5,20}$/.test(cleanSerial);
   
   if (!isValidFormat) {
     return { valid: false, error: 'صيغة المفتاح غير صحيحة (تأكد من إدخال المفتاح بشكل صحيح)' };
@@ -37,7 +37,7 @@ export async function verifyLicense(serialKey: string): Promise<VerifyLicenseRes
       let activationType: ActivationType = '1_month';
       
       // Map Arabic subscription types to system activation types
-      if (result.activationType === 'تجريبي') activationType = '14_days';
+      if (result.activationType === 'تجريبي') activationType = '2_days';
       else if (result.activationType === 'شهر') activationType = '1_month';
       else if (result.activationType === '3 أشهر') activationType = '1_month';
       else if (result.activationType === '6 أشهر') activationType = '1_month';

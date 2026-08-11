@@ -59,8 +59,18 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({ actions }) => {
         leftPos = window.innerWidth - dropdownWidth - 10;
       }
 
+      // Calculate height based on number of actions (approx 40px per action + padding)
+      const dropdownHeight = (actions.length * 40) + 16;
+      
+      let topPos = rect.bottom + window.scrollY;
+      
+      // If there's not enough space below, and there is space above, show it above
+      if (rect.bottom + dropdownHeight > window.innerHeight && rect.top > dropdownHeight) {
+        topPos = rect.top + window.scrollY - dropdownHeight;
+      }
+
       setPosition({
-        top: rect.bottom + window.scrollY,
+        top: topPos,
         left: leftPos + window.scrollX
       });
     }

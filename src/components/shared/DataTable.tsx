@@ -67,8 +67,8 @@ const DataTable: React.FC<DataTableProps> = ({
   const hasData = isServerSide ? (totalItems || 0) > 0 : data.length > 0;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden h-full flex flex-col">
+      <div className="overflow-x-auto overflow-y-auto flex-1">
         <table className="w-full text-right">
           <thead className="bg-bg-main">
             <tr>

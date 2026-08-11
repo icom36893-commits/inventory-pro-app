@@ -8,6 +8,12 @@ contextBridge.exposeInMainWorld('api', {
     update: (id: number, data: any) => ipcRenderer.invoke('invoices:update', id, data),
     delete: (id: number) => ipcRenderer.invoke('invoices:delete', id),
     getOne: (id: number) => ipcRenderer.invoke('invoices:getOne', id),
+    getUniqueBuyers: () => ipcRenderer.invoke('invoices:getUniqueBuyers'),
+    getLastPrice: (productId: number, partyId: number, type: string) => ipcRenderer.invoke('invoices:getLastPrice', productId, partyId, type),
+  },
+  permissions: {
+    getAll: () => ipcRenderer.invoke('permissions:getAll'),
+    update: (role: string, permissions: string[]) => ipcRenderer.invoke('permissions:update', role, permissions),
   },
   products: {
     getAll: (params?: any) => ipcRenderer.invoke('products:getAll', params),
@@ -15,6 +21,8 @@ contextBridge.exposeInMainWorld('api', {
     create: (data: any) => ipcRenderer.invoke('products:create', data),
     update: (id: number, data: any) => ipcRenderer.invoke('products:update', id, data),
     delete: (id: number) => ipcRenderer.invoke('products:delete', id),
+    restoreFromInitial: (id: number) => ipcRenderer.invoke('products:restoreFromInitial', id),
+    getMovements: (id: number) => ipcRenderer.invoke('products:getMovements', id),
   },
   parties: {
     getAll: (type: string) => ipcRenderer.invoke('parties:getAll', type),
@@ -28,7 +36,24 @@ contextBridge.exposeInMainWorld('api', {
     createTransaction: (data: any) => ipcRenderer.invoke('treasury:createTransaction', data),
     updateTransaction: (id: number, data: any) => ipcRenderer.invoke('treasury:updateTransaction', id, data),
     deleteTransaction: (id: number) => ipcRenderer.invoke('treasury:deleteTransaction', id),
-    getBalance: () => ipcRenderer.invoke('treasury:getBalance'),
+    getBalance: (fundId?: number) => ipcRenderer.invoke('treasury:getBalance', fundId),
+  },
+  funds: {
+    getAll: () => ipcRenderer.invoke('funds:getAll'),
+    create: (data: any) => ipcRenderer.invoke('funds:create', data),
+    update: (id: number, data: any) => ipcRenderer.invoke('funds:update', id, data),
+    delete: (id: number) => ipcRenderer.invoke('funds:delete', id),
+  },
+  statements: {
+    get: (accountType: 'party' | 'fund', accountId: number, currency: 'IQD' | 'USD', fromDate?: string, toDate?: string) => 
+      ipcRenderer.invoke('statement:get', accountType, accountId, currency, fromDate, toDate),
+  },
+  journals: {
+    getAll: () => ipcRenderer.invoke('journal:getAll'),
+    getOne: (id: number) => ipcRenderer.invoke('journal:getOne', id),
+    create: (data: any, userId: number) => ipcRenderer.invoke('journal:create', data, userId),
+    update: (id: number, data: any, userId: number) => ipcRenderer.invoke('journal:update', id, data, userId),
+    delete: (id: number) => ipcRenderer.invoke('journal:delete', id),
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
@@ -40,6 +65,12 @@ contextBridge.exposeInMainWorld('api', {
     printToPDF: (data: any) => ipcRenderer.invoke('settings:printToPDF', data),
     installLocalUpdate: () => ipcRenderer.invoke('settings:installLocalUpdate'),
     closeFiscalYear: () => ipcRenderer.invoke('settings:closeFiscalYear'),
+    setAutoStart: (enabled: boolean) => ipcRenderer.invoke('settings:setAutoStart', enabled),
+    getAutoStart: () => ipcRenderer.invoke('settings:getAutoStart'),
+    recalculateBalances: () => ipcRenderer.invoke('settings:recalculateBalances'),
+    getLocalIps: () => ipcRenderer.invoke('settings:getLocalIps'),
+    startCloudTunnel: (port: number) => ipcRenderer.invoke('settings:startCloudTunnel', port),
+    stopCloudTunnel: () => ipcRenderer.invoke('settings:stopCloudTunnel'),
   },
   users: {
     login: (credentials: any) => ipcRenderer.invoke('users:login', credentials),
@@ -90,6 +121,9 @@ contextBridge.exposeInMainWorld('api', {
     getTreasuryCategories: () => ipcRenderer.invoke('basicData:getTreasuryCategories'),
     createTreasuryCategory: (data: any) => ipcRenderer.invoke('basicData:createTreasuryCategory', data),
     deleteTreasuryCategory: (id: number) => ipcRenderer.invoke('basicData:deleteTreasuryCategory', id),
+    getFundCategories: () => ipcRenderer.invoke('basicData:getFundCategories'),
+    createFundCategory: (data: any) => ipcRenderer.invoke('basicData:createFundCategory', data),
+    deleteFundCategory: (id: number) => ipcRenderer.invoke('basicData:deleteFundCategory', id),
   },
   license: {
     verify: (serialKey: string) => ipcRenderer.invoke('license:verify', serialKey)
@@ -97,9 +131,9 @@ contextBridge.exposeInMainWorld('api', {
   updater: {
     checkForUpdates: () => ipcRenderer.invoke('updater:check'),
     installUpdate: () => ipcRenderer.invoke('updater:install'),
-    onUpdateAvailable: (callback: () => void) => {
+    onUpdateAvailable: (callback: (version: string) => void) => {
       ipcRenderer.removeAllListeners('updater:available');
-      ipcRenderer.on('updater:available', callback);
+      ipcRenderer.on('updater:available', (_event, version) => callback(version));
     },
     onUpdateNotAvailable: (callback: () => void) => {
       ipcRenderer.removeAllListeners('updater:not-available');
@@ -118,11 +152,24 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('updater:error', (_event, error) => callback(error));
     },
   },
+  equipment: {
+    getAll: () => ipcRenderer.invoke('equipment:getAll'),
+    create: (data: any) => ipcRenderer.invoke('equipment:create', data),
+    update: (id: number, data: any) => ipcRenderer.invoke('equipment:update', id, data),
+    delete: (id: number) => ipcRenderer.invoke('equipment:delete', id),
+    getLoans: () => ipcRenderer.invoke('equipment:getLoans'),
+    loan: (data: any) => ipcRenderer.invoke('equipment:loan', data),
+    return: (loanId: number, data: any) => ipcRenderer.invoke('equipment:return', loanId, data),
+  },
   onBackupSuccess: (callback: (data: any) => void) => {
     ipcRenderer.on('main-process-message', (_event, message) => callback(message))
   },
   onMessage: (callback: (message: string) => void) => {
     ipcRenderer.on('main-process-message', (_event, message) => callback(message))
+  },
+  onMenuAction: (callback: (action: string) => void) => {
+    ipcRenderer.removeAllListeners('menu-action');
+    ipcRenderer.on('menu-action', (_event, action) => callback(action));
   }
 })
 

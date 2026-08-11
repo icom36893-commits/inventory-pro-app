@@ -23,6 +23,10 @@ export function initInvoicesIpc() {
         params.push(filters.type);
       }
     }
+    if (filters?.payment_method) {
+      baseQuery += ` AND i.payment_method = ?`;
+      params.push(filters.payment_method);
+    }
     if (filters?.search) {
       baseQuery += ` AND (i.invoice_number LIKE ? OR p.name LIKE ? OR i.buyer_name LIKE ?)`;
       params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
@@ -47,6 +51,33 @@ export function initInvoicesIpc() {
     return { data, total: total.count, page, limit };
   });
 
+  ipcMain.handle('invoices:getLastPrice', async (_, productId: number, partyId: number, type: 'sale' | 'purchase') => {
+    const db = await getDb();
+    
+    const query = `
+      SELECT ii.unit_price
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      WHERE ii.product_id = ? AND i.party_id = ? AND i.type = ?
+      ORDER BY i.date DESC, i.created_at DESC
+      LIMIT 1
+    `;
+    
+    const result = await db.get(query, productId, partyId, type);
+    return result ? result.unit_price : null;
+  });
+
+  ipcMain.handle('invoices:getUniqueBuyers', async () => {
+    const db = await getDb();
+    try {
+      const rows = await db.all(`SELECT DISTINCT buyer_name FROM invoices WHERE type = 'purchase' AND buyer_name IS NOT NULL AND buyer_name != ''`);
+      return rows.map((r: any) => r.buyer_name);
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  });
+
   ipcMain.handle('invoices:getOne', async (_, id) => {
     const db = await getDb();
     const invoice = await db.get(`
@@ -58,12 +89,17 @@ export function initInvoicesIpc() {
 
     if (invoice) {
       const items = await db.all(`
-        SELECT ii.*, p.name as product_name, p.code as product_code
-        FROM invoice_items ii
-        LEFT JOIN products p ON ii.product_id = p.id
-        WHERE ii.invoice_id = ?
+        SELECT ii.*, p.name as product_name, p.code as product_code, p.sale_price, p.purchase_price
+          FROM invoice_items ii
+          LEFT JOIN products p ON ii.product_id = p.id
+          WHERE ii.invoice_id = ?
       `, id);
-      return { ...invoice, items };
+      
+      const additional_expenses = await db.all(`
+        SELECT * FROM invoice_expenses WHERE invoice_id = ?
+      `, id);
+      
+      return { ...invoice, items, additional_expenses };
     }
     return null;
   });
@@ -73,7 +109,7 @@ export function initInvoicesIpc() {
     const { 
       invoice_number, type, party_id, date, subtotal, discount_amount, 
       discount_type, tax_rate, tax_amount, total, paid_amount, 
-      remaining_amount, currency, payment_method, status, buyer_name, notes, items, created_by 
+      remaining_amount, currency, payment_method, status, buyer_name, notes, items, additional_expenses, created_by 
     } = data;
 
     try {
@@ -132,8 +168,11 @@ export function initInvoicesIpc() {
         
         await db.run(`UPDATE products SET current_stock = current_stock + ? WHERE id = ?`, stockChange, item.product_id);
         
-        if (type === 'purchase') {
+        if (type === 'purchase' && item.update_purchase_price) {
           await db.run('UPDATE products SET purchase_price = ? WHERE id = ?', item.unit_price, item.product_id);
+        }
+        if (type === 'sale' && item.update_sale_price) {
+          await db.run('UPDATE products SET sale_price = ? WHERE id = ?', item.unit_price, item.product_id);
         }
       }
 
@@ -166,10 +205,17 @@ export function initInvoicesIpc() {
         const treasuryType = (type === 'sale' || type === 'purchase_return') ? 'income' : 'expense';
         const category = (type === 'sale') ? 'customer_payment' : 'supplier_payment';
         
+        let invoiceFundId = data.fund_id || null;
+        if (!invoiceFundId && payment_method === 'cash') {
+          const fundName = (type === 'sale' || type === 'purchase_return') ? 'عميل نقدي' : 'مورد نقدي';
+          const fundRow = await db.get("SELECT id FROM funds WHERE is_system = 1 AND name = ? LIMIT 1", fundName);
+          if (fundRow) invoiceFundId = fundRow.id;
+        }
+
         const tr = await db.run(`
-          INSERT INTO treasury_transactions (type, category, amount, currency, party_id, invoice_id, description, date, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, treasuryType, category, paid_amount, currency || 'IQD', party_id, invoiceId, `دفعة على فاتورة رقم ${finalInvoiceNumber}`, date, created_by);
+          INSERT INTO treasury_transactions (type, category, amount, currency, party_id, invoice_id, description, date, created_by, fund_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, treasuryType, category, paid_amount, currency || 'IQD', party_id || null, invoiceId, `دفعة على فاتورة رقم ${finalInvoiceNumber}`, date, created_by, invoiceFundId);
 
         if (party_id) {
           const party = await db.get('SELECT current_balance_iqd, current_balance_usd FROM parties WHERE id = ?', party_id);
@@ -199,6 +245,28 @@ export function initInvoicesIpc() {
         }
       }
 
+      // 5. Save Additional Expenses
+      if (additional_expenses && additional_expenses.length > 0) {
+        const genExpFund = await db.get("SELECT id FROM funds WHERE name = 'المصاريف العامة' AND is_system = 1 LIMIT 1");
+        const fundIdToUse = genExpFund ? genExpFund.id : null;
+        
+        const treasuryType = (type === 'sale' || type === 'purchase_return') ? 'income' : 'expense';
+
+        for (const exp of additional_expenses) {
+          await db.run(`
+            INSERT INTO invoice_expenses (invoice_id, party_name, date, amount, details)
+            VALUES (?, ?, ?, ?, ?)
+          `, invoiceId, exp.party_name, exp.date, exp.amount, exp.details);
+          
+          if (fundIdToUse) {
+            await db.run(`
+              INSERT INTO treasury_transactions (type, category, amount, currency, invoice_id, description, date, created_by, fund_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, treasuryType, 'مصاريف إضافية لفاتورة', exp.amount, currency || 'IQD', invoiceId, exp.details || `مصاريف إضافية للفاتورة ${finalInvoiceNumber}`, exp.date, created_by, fundIdToUse);
+          }
+        }
+      }
+
       await db.run('COMMIT');
       return { id: invoiceId, warnings };
     } catch (error) {
@@ -213,7 +281,7 @@ export function initInvoicesIpc() {
     const { 
       id, type, party_id, date, subtotal, discount_amount, 
       discount_type, tax_rate, tax_amount, total, paid_amount, 
-      remaining_amount, currency, payment_method, status, buyer_name, notes, items, created_by 
+      remaining_amount, currency, payment_method, status, buyer_name, notes, items, additional_expenses, created_by 
     } = data;
 
     try {
@@ -250,6 +318,7 @@ export function initInvoicesIpc() {
       await db.run('DELETE FROM treasury_transactions WHERE invoice_id = ?', id);
       await db.run('DELETE FROM party_transactions WHERE reference_id = ? AND type = "invoice"', id);
       await db.run('DELETE FROM invoice_items WHERE invoice_id = ?', id);
+      await db.run('DELETE FROM invoice_expenses WHERE invoice_id = ?', id);
 
       // 4. Update Invoice
       await db.run(`
@@ -285,8 +354,11 @@ export function initInvoicesIpc() {
         
         await db.run('UPDATE products SET current_stock = current_stock + ? WHERE id = ?', stockChange, item.product_id);
         
-        if (type === 'purchase') {
+        if (type === 'purchase' && item.update_purchase_price) {
           await db.run('UPDATE products SET purchase_price = ? WHERE id = ?', item.unit_price, item.product_id);
+        }
+        if (type === 'sale' && item.update_sale_price) {
+          await db.run('UPDATE products SET sale_price = ? WHERE id = ?', item.unit_price, item.product_id);
         }
       }
 
@@ -317,10 +389,17 @@ export function initInvoicesIpc() {
         else if (type === 'sale_return') { treasuryType = 'expense'; category = 'مردودات مبيعات'; }
         else if (type === 'purchase_return') { treasuryType = 'income'; category = 'مردودات مشتريات'; }
         
+        let invoiceFundId = data.fund_id || null;
+        if (!invoiceFundId && payment_method === 'cash') {
+          const fundName = (type === 'sale' || type === 'purchase_return') ? 'عميل نقدي' : 'مورد نقدي';
+          const fundRow = await db.get("SELECT id FROM funds WHERE is_system = 1 AND name = ? LIMIT 1", fundName);
+          if (fundRow) invoiceFundId = fundRow.id;
+        }
+
         const tr = await db.run(`
-          INSERT INTO treasury_transactions (type, category, amount, currency, party_id, invoice_id, description, date, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, treasuryType, category, paid_amount, currency || 'IQD', party_id, id, `دفعة على فاتورة رقم ${oldInvoice.invoice_number}`, date, created_by);
+          INSERT INTO treasury_transactions (type, category, amount, currency, party_id, invoice_id, description, date, created_by, fund_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, treasuryType, category, paid_amount, currency || 'IQD', party_id || null, id, `دفعة على فاتورة رقم ${oldInvoice.invoice_number}`, date, created_by, invoiceFundId);
 
         if (party_id) {
           const party = await db.get('SELECT current_balance_iqd, current_balance_usd FROM parties WHERE id = ?', party_id);
@@ -345,6 +424,28 @@ export function initInvoicesIpc() {
             } else if (product.current_stock === 6) {
               warnings.push(`تنبيه: لقد اقترب الصنف "${product.name}" من الحد الأدنى للمخزون (المتبقي: ${product.current_stock})`);
             }
+          }
+        }
+      }
+
+      // 7. Save Additional Expenses
+      if (additional_expenses && additional_expenses.length > 0) {
+        const genExpFund = await db.get("SELECT id FROM funds WHERE name = 'المصاريف العامة' AND is_system = 1 LIMIT 1");
+        const fundIdToUse = genExpFund ? genExpFund.id : null;
+        
+        const treasuryType = (type === 'sale' || type === 'purchase_return') ? 'income' : 'expense';
+
+        for (const exp of additional_expenses) {
+          await db.run(`
+            INSERT INTO invoice_expenses (invoice_id, party_name, date, amount, details)
+            VALUES (?, ?, ?, ?, ?)
+          `, id, exp.party_name, exp.date, exp.amount, exp.details);
+          
+          if (fundIdToUse) {
+            await db.run(`
+              INSERT INTO treasury_transactions (type, category, amount, currency, invoice_id, description, date, created_by, fund_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, treasuryType, 'مصاريف إضافية لفاتورة', exp.amount, currency || 'IQD', id, exp.details || `مصاريف إضافية للفاتورة ${oldInvoice.invoice_number}`, exp.date, created_by, fundIdToUse);
           }
         }
       }
@@ -397,6 +498,7 @@ export function initInvoicesIpc() {
       // 4. Delete Invoice Items, Party Transactions, and Invoice
       await db.run('DELETE FROM party_transactions WHERE reference_id = ? AND type = "invoice"', id);
       await db.run('DELETE FROM invoice_items WHERE invoice_id = ?', id);
+      await db.run('DELETE FROM invoice_expenses WHERE invoice_id = ?', id);
       await db.run('DELETE FROM invoices WHERE id = ?', id);
 
       await db.run('COMMIT');

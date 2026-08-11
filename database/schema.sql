@@ -226,3 +226,86 @@ CREATE TABLE stocktake_items (
   difference REAL NOT NULL DEFAULT 0,
   notes TEXT
 );
+
+-- ===== المعدات =====
+CREATE TABLE equipments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  total_qty INTEGER DEFAULT 1,
+  available_qty INTEGER DEFAULT 1,
+  status TEXT DEFAULT 'available',
+  notes TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ===== إعارة المعدات =====
+CREATE TABLE equipment_loans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  equipment_id INTEGER REFERENCES equipments(id) ON DELETE CASCADE,
+  borrower_name TEXT NOT NULL,
+  qty_borrowed INTEGER DEFAULT 1,
+  loan_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  expected_return_date DATE,
+  return_date DATE,
+  status TEXT DEFAULT 'active',
+  notes TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ===== مصاريف إضافية للفواتير =====
+CREATE TABLE invoice_expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
+  party_name TEXT,
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  amount REAL NOT NULL,
+  details TEXT
+);
+
+-- ===== تصنيفات الصناديق =====
+CREATE TABLE fund_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  is_system INTEGER DEFAULT 0
+);
+
+-- ===== الصناديق =====
+CREATE TABLE funds (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  opening_balance_iqd REAL DEFAULT 0,
+  opening_balance_usd REAL DEFAULT 0,
+  is_system INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ===== القيود اليومية =====
+CREATE TABLE journal_vouchers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  voucher_number TEXT UNIQUE NOT NULL,
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  notes TEXT,
+  created_by INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE journal_voucher_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  voucher_id INTEGER REFERENCES journal_vouchers(id) ON DELETE CASCADE,
+  account_type TEXT NOT NULL,
+  account_id INTEGER,
+  debit_iqd REAL DEFAULT 0,
+  credit_iqd REAL DEFAULT 0,
+  debit_usd REAL DEFAULT 0,
+  credit_usd REAL DEFAULT 0,
+  description TEXT,
+  category TEXT
+);
+
+-- ===== ������� ���������� =====
+CREATE TABLE role_permissions (
+  role TEXT PRIMARY KEY,
+  permissions TEXT
+);

@@ -28,7 +28,7 @@ const StatementPrintTemplate: React.FC<StatementPrintTemplateProps> = ({ party, 
   const headerImage = settings?.statement_header_image;
   const footerImage = settings?.statement_footer_image;
   const customHtml = settings?.statement_custom_html || '';
-  const logoSize = settings?.statement_logo_size || 60;
+  const logoSize = settings?.statement_logo_size || 120;
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat('en-US', {
@@ -53,7 +53,17 @@ const StatementPrintTemplate: React.FC<StatementPrintTemplateProps> = ({ party, 
       itemsRows = transactions.map((tx: any) => `
         <tr style="border-bottom: 1px solid #e2e8f0;">
           <td style="padding: 12px; border: 1px solid #e2e8f0;">${tx.date}</td>
-          <td style="padding: 12px; border: 1px solid #e2e8f0;">${tx.type === 'opening_balance' ? 'رصيد افتتاحي' : tx.type === 'invoice' ? 'فاتورة' : tx.type === 'payment' ? 'دفعة/سداد' : tx.type}</td>
+          <td style="padding: 12px; border: 1px solid #e2e8f0;">${({
+          opening_balance: 'رصيد افتتاحي',
+          invoice: 'فاتورة',
+          payment: 'دفعة/سداد',
+          journal: 'سند قيد يومية',
+          sale: 'فاتورة مبيعات',
+          purchase: 'فاتورة مشتريات',
+          return: 'فاتورة مرتجع',
+          sale_return: 'مرتجع مبيعات',
+          purchase_return: 'مرتجع مشتريات'
+        } as Record<string, string>)[tx.type] || tx.type}</td>
           <td style="padding: 12px; text-align: center; border: 1px solid #e2e8f0;">${tx.reference_id || '-'}</td>
           <td style="padding: 12px; text-align: center; color: #dc2626; border: 1px solid #e2e8f0;">${tx.debit > 0 ? formatCurrency(tx.debit, currency) : '-'}</td>
           <td style="padding: 12px; text-align: center; color: #16a34a; border: 1px solid #e2e8f0;">${tx.credit > 0 ? formatCurrency(tx.credit, currency) : '-'}</td>
@@ -130,7 +140,17 @@ const StatementPrintTemplate: React.FC<StatementPrintTemplateProps> = ({ party, 
               {transactions.map((tx: any, idx: number) => (
                 <tr key={idx}>
                   <td className="border p-2">{tx.date}</td>
-                  <td className="border p-2">{tx.type === 'opening_balance' ? 'رصيد افتتاحي' : tx.type === 'invoice' ? 'فاتورة' : tx.type === 'payment' ? 'دفعة/سداد' : tx.type}</td>
+                  <td className="border p-2">{({
+          opening_balance: 'رصيد افتتاحي',
+          invoice: 'فاتورة',
+          payment: 'دفعة/سداد',
+          journal: 'سند قيد يومية',
+          sale: 'فاتورة مبيعات',
+          purchase: 'فاتورة مشتريات',
+          return: 'فاتورة مرتجع',
+          sale_return: 'مرتجع مبيعات',
+          purchase_return: 'مرتجع مشتريات'
+        } as Record<string, string>)[tx.type] || tx.type}</td>
                   <td className="border p-2 text-center">{tx.reference_id || '-'}</td>
                   <td className="border p-2 text-red-600 text-center">{tx.debit > 0 ? formatCurrency(tx.debit, currency) : '-'}</td>
                   <td className="border p-2 text-green-600 text-center">{tx.credit > 0 ? formatCurrency(tx.credit, currency) : '-'}</td>

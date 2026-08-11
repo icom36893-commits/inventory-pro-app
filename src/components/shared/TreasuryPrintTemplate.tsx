@@ -6,6 +6,14 @@ interface TreasuryPrintTemplateProps {
   transaction: any;
 }
 
+const categoryTranslations: Record<string, string> = {
+  customer_payment: 'دفعة من عميل',
+  supplier_return: 'مرتجع مورد',
+  customer_return: 'مرتجع عميل',
+  supplier_payment: 'دفعة لمورد',
+};
+const translateCategory = (cat: string) => categoryTranslations[cat] || cat;
+
 const TreasuryPrintTemplate: React.FC<TreasuryPrintTemplateProps> = ({ transaction }) => {
   const { settings } = useSettingsStore();
   
@@ -19,7 +27,7 @@ const TreasuryPrintTemplate: React.FC<TreasuryPrintTemplateProps> = ({ transacti
   const showLogo = settings?.print_show_logo !== 'false' && settings?.print_show_logo !== 0;
   const templateType = settings?.treasury_template_type || 'internal';
   const primaryColor = settings?.treasury_print_color || settings?.print_primary_color || '#1e293b';
-  const logoSize = settings?.treasury_logo_size || 60;
+  const logoSize = settings?.treasury_logo_size || 120;
   const customHtml = settings?.treasury_custom_html || '';
 
   if (templateType === 'custom' && customHtml) {
@@ -34,7 +42,7 @@ const TreasuryPrintTemplate: React.FC<TreasuryPrintTemplateProps> = ({ transacti
       .replaceAll('{{date}}', transaction.date)
       .replaceAll('{{amount}}', formatCurrency(transaction.amount, transaction.currency || 'IQD'))
       .replaceAll('{{party_name}}', transaction.party_name || 'نقدي')
-      .replaceAll('{{category}}', transaction.category || '')
+      .replaceAll('{{category}}', translateCategory(transaction.category || ''))
       .replaceAll('{{description}}', transaction.description || '');
 
     return <div dangerouslySetInnerHTML={{ __html: parsedHtml }} />;
@@ -86,7 +94,7 @@ const TreasuryPrintTemplate: React.FC<TreasuryPrintTemplateProps> = ({ transacti
           </tr>
           <tr>
             <td className="p-4 border-b border-gray-200 text-gray-500 font-bold">التصنيف:</td>
-            <td className="p-4 border-b border-gray-200 text-lg">{transaction.category}</td>
+            <td className="p-4 border-b border-gray-200 text-lg">{translateCategory(transaction.category || '')}</td>
           </tr>
           <tr>
             <td className="p-4 border-b border-gray-200 text-gray-500 font-bold">الوصف / البيان:</td>

@@ -1,0 +1,110 @@
+﻿    if (state.step === 'DETAILED_MENU') {
+      if (text === 'ًںڈ·ï¸ڈ ظƒط´ظپ طھط؛ظٹظٹط± ط§ظ„ط£ط³ط¹ط§ط±') {
+        state.step = 'PRICE_VARIATIONS_MENU';
+        return bot.sendMessage(chatId, 'ط§ط®طھط± ظ†ظˆط¹ ظƒط´ظپ طھط؛ظٹط± ط§ظ„ط£ط³ط¹ط§ط±:', getPriceVariationsKeyboard());
+      }
+
+      // Some reports don't need dates (like Customer Balances and Balance Sheet)
+      if (text === 'ًں‘¥ ط£ط±طµط¯ط© ط§ظ„ط¹ظ…ظ„ط§ط،') return sendCustomersReport(chatId, db, settings);
+      if (text === 'âڑ–ï¸ڈ ط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ط§ظ„ط¹ظ…ظˆظ…ظٹط©') return sendBalanceSheet(chatId, db, settings);
+      if (text === 'ًں’° طھظ‚ط±ظٹط± ط§ظ„ط®ط²ظٹظ†ط© ظˆط§ظ„طµظ†ط§ط¯ظٹظ‚') return sendTreasuryReport(chatId, db, settings);
+      if (text === 'ًں› ï¸ڈ طھظ‚ط±ظٹط± ط§ظ„ظ…ط¹ط¯ط§طھ ظˆط§ظ„ط£طµظˆظ„') return sendEquipmentReport(chatId, db, settings);
+
+      const requiresDate = ['ًں“ٹ ظ…ط¨ظٹط¹ط§طھ طھظپطµظٹظ„ظٹ', 'ًں’° ط¯ط®ظ„ طھظپطµظٹظ„ظٹ', 'ًں›’ ظ…ط´طھط±ظٹط§طھ طھظپطµظٹظ„ظٹ', 'ًں”„ ط­ط±ظƒط© ط§ظ„ظ…ط®ط²ظˆظ†', 'ًں“¦ ط§ظ„ظƒظ…ظٹط§طھ ط§ظ„ظ…طھط¨ظ‚ظٹط© ظپظٹ ط§ظ„ظ…ط®ط²ظ†'].includes(text);
+      if (requiresDate) {
+        state.step = 'DATE_SELECTION';
+        state.reportType = text;
+        return bot.sendMessage(chatId, `ط§ط®طھط± ط§ظ„ظپطھط±ط© ط§ظ„ط²ظ…ظ†ظٹط© ظ„ظ€ (${text}):`, getDateSelectionKeyboard());
+      }
+    }
+
+    // 3.5 Price Variations Menu
+    if (state.step === 'PRICE_VARIATIONS_MENU') {
+      if (text === 'ًں“‹ ظƒط´ظپ ط¬ظ…ظٹط¹ ط§ظ„ظ…ظˆط§ط¯') {
+        state.step = 'DATE_SELECTION';
+        state.reportType = text;
+        return bot.sendMessage(chatId, `ط§ط®طھط± ط§ظ„ظپطھط±ط© ط§ظ„ط²ظ…ظ†ظٹط© ظ„ظƒط´ظپ ط¬ظ…ظٹط¹ ط§ظ„ظ…ظˆط§ط¯:`, getDateSelectionKeyboard());
+      }
+      if (text === 'ًں”چ ظƒط´ظپ ط³ط¹ط± ظ…ط§ط¯ط©') {
+        state.step = 'PRICE_VAR_ITEM_NAME';
+        return bot.sendMessage(chatId, 'ظٹط±ط¬ظ‰ ظƒطھط§ط¨ط© ط§ط³ظ… ط§ظ„ظ…ط§ط¯ط© (ط§ظ„طµظ†ظپ) ظ„ظ„ط¨ط­ط« ط¹ظ†ظ‡ط§:', { reply_markup: { remove_keyboard: true } });
+      }
+    }
+
+    if (state.step === 'PRICE_VAR_ITEM_NAME') {
+      state.itemName = text;
+      state.step = 'DATE_SELECTION';
+      state.reportType = 'ًں”چ ظƒط´ظپ ط³ط¹ط± ظ…ط§ط¯ط©';
+      return bot.sendMessage(chatId, `ظ„ظ‚ط¯ ط§ط®طھط±طھ ط§ظ„ظ…ط§ط¯ط©: ${text}\nط§ظ„ط¢ظ† ط§ط®طھط± ط§ظ„ظپطھط±ط© ط§ظ„ط²ظ…ظ†ظٹط©:`, getDateSelectionKeyboard());
+    }
+
+    if (state.step === 'PARTIES_MENU') {
+      if (text === 'ًں‘¥ ط§ظ„ط¹ظ…ظ„ط§ط،') return sendCustomersReport(chatId, db, settings);
+      if (text === 'ًںڈ¢ ط§ظ„ظ…ظˆط±ط¯ظٹظ†') return sendSuppliersReport(chatId, db, settings);
+    }
+
+    // 4. Date Selection
+    if (state.step === 'DATE_SELECTION') {
+      if (text === 'âŒ¨ï¸ڈ ط¥ط¯ط®ط§ظ„ طھط§ط±ظٹط® ظ…ط®طµطµ') {
+        state.step = 'CUSTOM_DATE_INPUT';
+        return bot.sendMessage(chatId, 'ط£ط¯ط®ظ„ ط§ظ„طھط§ط±ظٹط® ط¨ط§ظ„طµظٹط؛ط© ط§ظ„طھط§ظ„ظٹط©:\n`YYYY-MM-DD ط§ظ„ظ‰ YYYY-MM-DD`\nط£ظˆ ظٹظˆظ… ظˆط§ط­ط¯:\n`YYYY-MM-DD`', {
+          parse_mode: 'Markdown',
+          reply_markup: { remove_keyboard: true } // hide keyboard temporarily
+        });
+      }
+
+      let start = today, end = today;
+      if (text === 'ًں“… ط§ظ„ظٹظˆظ…') { start = today; end = today; }
+      else if (text === 'ًں“… ط§ظ„ط£ظ…ط³') { const yesterday = getRelativeDateString(-1); start = yesterday; end = yesterday; }
+      else if (text === 'ًں“… ط¢ط®ط± 7 ط£ظٹط§ظ…') { start = getRelativeDateString(-6); end = today; }
+      else if (text === 'ًں“… ظ‡ط°ط§ ط§ظ„ط´ظ‡ط±') { const p = getMonthStartEnd(0); start = p.start; end = p.end; }
+      else if (text === 'ًں“… ط§ظ„ط´ظ‡ط± ط§ظ„ظ…ط§ط¶ظٹ') { const p = getMonthStartEnd(-1); start = p.start; end = p.end; }
+      else if (text === 'ًں“… ظ‡ط°ظ‡ ط§ظ„ط³ظ†ط©') { const p = getYearStartEnd(); start = p.start; end = p.end; }
+      else return; // Ignore unknown
+
+      return handleDetailedReportTrigger(chatId, start, end, state, db, settings);
+    }
+
+    // 5. Custom Date Input
+    if (state.step === 'CUSTOM_DATE_INPUT') {
+      let start, end;
+      if (text.includes('ط§ظ„ظ‰')) {
+        const parts = text.split('ط§ظ„ظ‰').map(s => s.trim());
+        start = parts[0];
+        end = parts[1];
+      } else {
+        start = text.trim();
+        end = text.trim();
+      }
+
+      // Very basic validation
+      if (!start.match(/^\d{4}-\d{2}-\d{2}$/) || !end.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return bot.sendMessage(chatId, 'â‌Œ طµظٹط؛ط© ط§ظ„طھط§ط±ظٹط® ط؛ظٹط± طµط­ظٹط­ط©. ظٹط±ط¬ظ‰ ط§ظ„ط¥ط¯ط®ط§ظ„ ط¨طµظٹط؛ط© YYYY-MM-DD (ظ…ط«ط§ظ„: 2026-01-01)');
+      }
+
+      return handleDetailedReportTrigger(chatId, start, end, state, db, settings);
+    }
+  });
+
+  async function handleDetailedReportTrigger(chatId: number, start: string, end: string, state: UserState, db: any, settings: any) {
+    const reportType = state.reportType;
+    
+    // reset state
+    state.step = 'DETAILED_MENU';
+    state.reportType = undefined;
+    
+    bot.sendMessage(chatId, `ط¬ط§ط±ظٹ ط§ط³طھط®ط±ط§ط¬ ط§ظ„ط¨ظٹط§ظ†ط§طھ ظ…ظ† ${start} ط¥ظ„ظ‰ ${end}...`);
+
+    if (reportType === 'ًں“ٹ ظ…ط¨ظٹط¹ط§طھ طھظپطµظٹظ„ظٹ') await sendSalesReport(chatId, start, end, db, settings);
+    else if (reportType === 'ًں’° ط¯ط®ظ„ طھظپطµظٹظ„ظٹ') await sendIncomeStatement(chatId, start, end, db, settings);
+    else if (reportType === 'ًں›’ ظ…ط´طھط±ظٹط§طھ طھظپطµظٹظ„ظٹ') await sendPurchasesReport(chatId, start, end, db, settings);
+    else if (reportType === 'ًں”„ ط­ط±ظƒط© ط§ظ„ظ…ط®ط²ظˆظ†') await sendInventoryMovement(chatId, start, end, db, settings);
+    else if (reportType === 'ًں“¦ ط§ظ„ظƒظ…ظٹط§طھ ط§ظ„ظ…طھط¨ظ‚ظٹط© ظپظٹ ط§ظ„ظ…ط®ط²ظ†') await sendRemainingQuantitiesReport(chatId, start, end, db, settings);
+    else if (reportType === 'ًں“‹ ظƒط´ظپ ط¬ظ…ظٹط¹ ط§ظ„ظ…ظˆط§ط¯') await sendPriceVariationsReport(chatId, start, end, null, db, settings);
+    else if (reportType === 'ًں”چ ظƒط´ظپ ط³ط¹ط± ظ…ط§ط¯ط©') await sendPriceVariationsReport(chatId, start, end, state.itemName || null, db, settings);
+
+    // Show menu again
+    bot.sendMessage(chatId, 'ط§ط®طھط± طھظ‚ط±ظٹط±ط§ظ‹ ط¢ط®ط± ط£ظˆ ط§ط±ط¬ط¹ ظ„ظ„ظ‚ط§ط¦ظ…ط©:', getDetailedMenuKeyboard(settings));
+  }
+
+  const formatNum = (num: any) => {

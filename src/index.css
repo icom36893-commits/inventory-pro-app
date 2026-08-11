@@ -23,6 +23,8 @@
   --color-card-bg: #2D3748;
   --color-text-primary: #F7FAFC;
   --color-border: #4A5568;
+  --color-sidebar-bg: #0f172a;
+  --color-sidebar-text: #e2e8f0;
 }
 
 * {
@@ -88,6 +90,13 @@ aside ::-webkit-scrollbar-thumb:hover {
     visibility: visible;
   }
   
+  /* Prevent h-screen or 100vh from forcing empty pages in print */
+  body, html, #root, #root > div, .h-screen {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  
   .print-area-view {
     position: absolute !important;
     left: 0 !important;
@@ -129,3 +138,11 @@ aside ::-webkit-scrollbar-thumb:hover {
     margin: 1cm;
   }
 }
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .bg-white { background-color: var(--color-card-bg) !important; }
+[data-theme="dark"] .from-white { --tw-gradient-from: var(--color-card-bg) !important; }
+[data-theme="dark"] .to-white { --tw-gradient-to: var(--color-card-bg) !important; }
+[data-theme="dark"] .text-black, [data-theme="dark"] .text-gray-800, [data-theme="dark"] .text-slate-800 { color: var(--color-text-primary) !important; }
+[data-theme="dark"] .bg-gray-50, [data-theme="dark"] .bg-slate-50 { background-color: var(--color-bg-main) !important; }
+[data-theme="dark"] .border-gray-200, [data-theme="dark"] .border-slate-100, [data-theme="dark"] .border-slate-200 { border-color: var(--color-border) !important; }

@@ -1,0 +1,25 @@
+﻿
+    if (!userStates[chatId]) {
+      userStates[chatId] = { step: 'MAIN_MENU' };
+    }
+
+    const state = userStates[chatId];
+
+    const today = getTodayDateString();
+
+    // 1. Navigation
+    if (text === 'ًں”™ ط±ط¬ظˆط¹ ظ„ظ„ظ‚ط§ط¦ظ…ط© ط§ظ„ط±ط¦ظٹط³ظٹط©') {
+      state.step = 'MAIN_MENU';
+      return bot.sendMessage(chatId, 'طھظ… ط§ظ„ط¹ظˆط¯ط© ظ„ظ„ظ‚ط§ط¦ظ…ط© ط§ظ„ط±ط¦ظٹط³ظٹط©.', getMainMenuKeyboard(settings));
+    }
+    
+    if (text === 'ًں”™ ط¥ظ„ط؛ط§ط، ظˆط§ظ„ط±ط¬ظˆط¹ ظ„ظ„ظ‚ط§ط¦ظ…ط©') {
+      if (state.reportType === 'ًں“‹ ظƒط´ظپ ط¬ظ…ظٹط¹ ط§ظ„ظ…ظˆط§ط¯' || state.reportType === 'ًں”چ ظƒط´ظپ ط³ط¹ط± ظ…ط§ط¯ط©') {
+        state.step = 'PRICE_VARIATIONS_MENU';
+        state.reportType = undefined;
+        return bot.sendMessage(chatId, 'طھظ… ط¥ظ„ط؛ط§ط، طھط­ط¯ظٹط¯ ط§ظ„طھط§ط±ظٹط®.', getPriceVariationsKeyboard());
+      } else {
+        state.step = 'DETAILED_MENU';
+        state.reportType = undefined;
+        return bot.sendMessage(chatId, 'طھظ… ط¥ظ„ط؛ط§ط، طھط­ط¯ظٹط¯ ط§ظ„طھط§ط±ظٹط®.', getDetailedMenuKeyboard(settings));
+      }

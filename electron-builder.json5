@@ -14,17 +14,20 @@
   ],
   "win": {
     "target": "nsis",
-    "icon": "public/logo.png"
+    "icon": "public/logo.png",
+    "certificateFile": null,
+    "certificateSubjectName": null,
+    "verifyUpdateCodeSignature": false
   },
   "nsis": {
-    "artifactName": "Setup inventory.${ext}",
+    "artifactName": "Makhzan.Pro.exe",
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "installerLanguages": ["ar"],
     "language": "1025",
-    "license": "buildResources/features.txt"
+    "license": "build/features.txt"
   },
   "extraResources": [
     {

@@ -1,7 +1,7 @@
 {
   "name": "inventory-pro-app",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.5",
   "scripts": {
     "dev": "vite",
     "build": "vite build && electron-builder",
@@ -9,18 +9,45 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
+  "build": {
+    "appId": "com.inventorypro.app",
+    "productName": "Makhzan Pro",
+    "artifactName": "Makhzan.Pro.exe",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release/1.0.5"
+    },
+    "extraResources": [
+      "database/schema.sql"
+    ],
+    "win": {
+      "icon": "public/logo.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "license": "build/features.txt",
+      "language": "1025",
+      "installerLanguages": [
+        "ar"
+      ],
+      "unicode": true
+    }
+  },
   "dependencies": {
     "autoprefixer": "^10.5.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "electron-updater": "^6.8.9",
-    "firebase": "^12.15.0",
+    "firebase": "^12.16.0",
     "html2pdf.js": "^0.14.0",
+    "localtunnel": "^2.0.2",
     "lucide-react": "^1.14.0",
     "node-telegram-bot-api": "^1.1.2",
     "postcss": "^8.5.14",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-qr-code": "^2.2.0",
     "react-to-print": "^3.3.0",
     "recharts": "^3.8.1",
     "sqlite": "^5.1.1",
@@ -35,6 +62,7 @@
     "@rollup/plugin-commonjs": "^29.0.2",
     "@tailwindcss/postcss": "^4.3.0",
     "@types/bcryptjs": "^2.4.6",
+    "@types/localtunnel": "^2.0.4",
     "@types/node-telegram-bot-api": "^0.64.15",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
@@ -42,7 +70,7 @@
     "@typescript-eslint/parser": "^7.1.1",
     "@vitejs/plugin-react": "^4.2.1",
     "electron": "^30.0.1",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^26.15.3",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",

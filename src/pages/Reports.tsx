@@ -13,45 +13,60 @@ import {
 import DataTable from '../components/shared/DataTable';
 import Modal from '../components/shared/Modal';
 import { useToast } from '../context/ToastContext';
-import { useSettingsStore } from '../store';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
+import { useSettingsStore, useAuthStore, usePermissionsStore } from '../store';
+
 import * as xlsx from 'xlsx';
 import { formatCurrency, CurrencyType } from '../utils/currency';
 import { defaultReportTemplate } from '../templates/defaultReport';
 
 const ReportCard = ({ title, description, icon, color, onClick }: any) => {
   const textColor = color.replace('bg-', 'text-');
-  const bgColor = color === 'bg-primary' ? 'bg-primary/10' : 
-                  color === 'bg-warning' ? 'bg-warning/10' : 
-                  color === 'bg-success' ? 'bg-success/10' : 
-                  color === 'bg-danger' ? 'bg-danger/10' : 
-                  color === 'bg-accent' ? 'bg-accent/10' :
-                  color === 'bg-sidebar-bg' ? 'bg-sidebar-bg/10' : 'bg-gray-100';
+  const bgGradient = color === 'bg-primary' ? 'from-primary/20 to-primary/5 text-primary' : 
+                     color === 'bg-warning' ? 'from-orange-500/20 to-orange-500/5 text-orange-500' : 
+                     color === 'bg-success' ? 'from-green-500/20 to-green-500/5 text-green-500' : 
+                     color === 'bg-danger' ? 'from-red-500/20 to-red-500/5 text-red-500' : 
+                     color === 'bg-accent' ? 'from-purple-500/20 to-purple-500/5 text-purple-500' :
+                     color === 'bg-sidebar-bg' ? 'from-gray-800/20 to-gray-800/5 text-gray-800' : 'from-gray-200 to-gray-100 text-gray-600';
+
+  const hoverBorder = color === 'bg-primary' ? 'hover:border-primary/30' : 
+                      color === 'bg-warning' ? 'hover:border-orange-500/30' : 
+                      color === 'bg-success' ? 'hover:border-green-500/30' : 
+                      color === 'bg-danger' ? 'hover:border-red-500/30' : 
+                      color === 'bg-accent' ? 'hover:border-purple-500/30' :
+                      color === 'bg-sidebar-bg' ? 'hover:border-gray-800/30' : 'hover:border-gray-300';
 
   return (
-  <div onClick={onClick} className="bg-white p-6 rounded-3xl border border-border shadow-sm hover:shadow-lg transition-all group cursor-pointer relative overflow-hidden">
-    <div className={`w-14 h-14 rounded-2xl ${bgColor} ${textColor} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-      {React.cloneElement(icon, { size: 28 })}
+  <div onClick={onClick} className={`bg-white p-7 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl ${hoverBorder} hover:-translate-y-1 transition-all duration-300 group cursor-pointer relative overflow-hidden`}>
+    <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${bgGradient} flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm`}>
+      {React.cloneElement(icon, { size: 30 })}
     </div>
-    <h3 className="text-lg font-bold text-text-primary mb-2">{title}</h3>
-    <p className="text-sm text-text-muted mb-6 leading-relaxed">{description}</p>
-    <div className="flex justify-between items-center pt-4 border-t border-border">
-      <div className="flex items-center gap-2 text-xs font-bold text-primary">
-        <FileText size={14} />
-        عرض التقرير
+    <h3 className="text-xl font-black text-gray-800 mb-3 group-hover:text-primary transition-colors">{title}</h3>
+    <p className="text-sm text-gray-500 mb-8 leading-relaxed line-clamp-2">{description}</p>
+    <div className="flex justify-between items-center pt-5 border-t border-gray-100 mt-auto">
+      <div className="flex items-center gap-2 text-sm font-bold text-primary group-hover:translate-x-[-4px] transition-transform">
+        <FileText size={16} />
+        استعراض التقرير
       </div>
-      <div className="flex gap-2">
-        <button className="p-2 rounded-lg hover:bg-bg-main text-text-muted transition-colors">
-          <Download size={14} />
-        </button>
-        <button className="p-2 rounded-lg hover:bg-bg-main text-text-muted transition-colors">
-          <Printer size={14} />
-        </button>
+      <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="p-2 rounded-xl bg-gray-50 hover:bg-gray-200 text-gray-400 hover:text-gray-700 transition-colors">
+          <Download size={16} />
+        </div>
+        <div className="p-2 rounded-xl bg-gray-50 hover:bg-gray-200 text-gray-400 hover:text-gray-700 transition-colors">
+          <Printer size={16} />
+        </div>
       </div>
     </div>
   </div>
 )};
+
+
+const categoryTranslations: Record<string, string> = {
+  customer_payment: 'دفعة من عميل',
+  supplier_return: 'مرتجع مورد',
+  customer_return: 'مرتجع عميل',
+  supplier_payment: 'دفعة لمورد',
+};
+const translateCategory = (cat: string) => categoryTranslations[cat] || cat;
 
 const Reports: React.FC = () => {
   const [activeReport, setActiveReport] = useState<string | null>(null);
@@ -63,6 +78,8 @@ const Reports: React.FC = () => {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const toast = useToast();
+  const { user } = useAuthStore();
+  const { hasPermission } = usePermissionsStore();
   const { settings } = useSettingsStore();
 
   const exchangeRate = parseFloat((settings as any)?.exchange_rate || '1500') || 1500;
@@ -164,8 +181,8 @@ const Reports: React.FC = () => {
 
     if (activeReport === 'income') {
       dataToExport = [
-        ...reportData.revenues.map((r: any) => ({ 'النوع': 'إيراد', 'البند': r.name, [valueHeader]: getConvertedValue(r.value) })),
-        ...reportData.expenses.map((e: any) => ({ 'النوع': 'مصروف', 'البند': e.name, [valueHeader]: getConvertedValue(e.value) })),
+        ...reportData.revenues.map((r: any) => ({ 'النوع': 'إيراد', 'البند': translateCategory(r.name), [valueHeader]: getConvertedValue(r.value) })),
+        ...reportData.expenses.map((e: any) => ({ 'النوع': 'مصروف', 'البند': translateCategory(e.name), [valueHeader]: getConvertedValue(e.value) })),
         { 'النوع': 'الصافي', 'البند': 'صافي الدخل', [valueHeader]: getConvertedValue(reportData.netIncome) }
       ];
     } else if (activeReport === 'sales' || activeReport === 'purchases') {
@@ -224,40 +241,62 @@ const Reports: React.FC = () => {
   const renderIncomeStatement = () => {
     if (!reportData) return null;
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-6">
-          <div className="bg-bg-main p-4 rounded-xl">
-            <h4 className="font-bold text-success mb-4 border-b border-success/20 pb-2">الإيرادات</h4>
-            {reportData.revenues.map((r: any, i: number) => (
-              <div key={i} className="flex justify-between mb-2 text-sm">
-                <span>{r.name}</span>
-                <span className="font-bold" dir="ltr">{formatConvertedCurrency(r.value)}</span>
-              </div>
-            ))}
-            <div className="flex justify-between font-bold text-success mt-4 pt-2 border-t border-success/20">
-              <span>إجمالي الإيرادات</span>
-              <span dir="ltr">{formatConvertedCurrency(reportData.totalRevenue)}</span>
+      <div className="space-y-6 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-1 h-full bg-gradient-to-b from-green-400 to-emerald-600"></div>
+            <h4 className="font-black text-gray-800 text-lg mb-4 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                <TrendingUp size={16} />
+              </span>
+              الإيرادات والمبيعات
+            </h4>
+            <div className="space-y-3 mb-6">
+              {reportData.revenues.map((r: any, i: number) => (
+                <div key={i} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-100">
+                  <span className="font-medium text-gray-600">{translateCategory(r.name)}</span>
+                  <span className="font-bold text-gray-900" dir="ltr">{formatConvertedCurrency(r.value)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between items-center p-4 bg-green-50/50 rounded-xl border border-green-100 mt-auto">
+              <span className="font-black text-green-700">إجمالي الإيرادات</span>
+              <span className="font-black text-green-600 text-xl" dir="ltr">{formatConvertedCurrency(reportData.totalRevenue)}</span>
             </div>
           </div>
           
-          <div className="bg-bg-main p-4 rounded-xl">
-            <h4 className="font-bold text-danger mb-4 border-b border-danger/20 pb-2">المصروفات</h4>
-            {reportData.expenses.map((e: any, i: number) => (
-              <div key={i} className="flex justify-between mb-2 text-sm">
-                <span>{e.name}</span>
-                <span className="font-bold" dir="ltr">{formatConvertedCurrency(e.value)}</span>
-              </div>
-            ))}
-            <div className="flex justify-between font-bold text-danger mt-4 pt-2 border-t border-danger/20">
-              <span>إجمالي المصروفات</span>
-              <span dir="ltr">{formatConvertedCurrency(reportData.totalExpense)}</span>
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-1 h-full bg-gradient-to-b from-red-400 to-rose-600"></div>
+            <h4 className="font-black text-gray-800 text-lg mb-4 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+                <TrendingUp size={16} className="rotate-180" />
+              </span>
+              المصروفات والمدفوعات
+            </h4>
+            <div className="space-y-3 mb-6">
+              {reportData.expenses.map((e: any, i: number) => (
+                <div key={i} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-100">
+                  <span className="font-medium text-gray-600">{translateCategory(e.name)}</span>
+                  <span className="font-bold text-gray-900" dir="ltr">{formatConvertedCurrency(e.value)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between items-center p-4 bg-red-50/50 rounded-xl border border-red-100 mt-auto">
+              <span className="font-black text-red-700">إجمالي المصروفات</span>
+              <span className="font-black text-red-600 text-xl" dir="ltr">{formatConvertedCurrency(reportData.totalExpense)}</span>
             </div>
           </div>
         </div>
         
-        <div className="bg-primary text-white p-6 rounded-xl flex justify-between items-center text-xl font-bold shadow-lg">
-          <span>صافي الدخل (الربح/الخسارة)</span>
-          <span dir="ltr">{formatConvertedCurrency(reportData.netIncome)}</span>
+        <div className={`p-8 rounded-2xl flex flex-col md:flex-row justify-between items-center shadow-lg border relative overflow-hidden ${reportData.netIncome >= 0 ? 'bg-gradient-to-r from-success to-emerald-600 border-green-700' : 'bg-gradient-to-r from-danger to-rose-600 border-red-700'}`}>
+          <div className="absolute top-0 right-0 w-full h-full bg-black/10"></div>
+          <div className="relative z-10 text-white mb-2 md:mb-0">
+            <span className="block text-sm font-bold opacity-80 mb-1">النتيجة النهائية للفترة</span>
+            <span className="text-2xl font-black">صافي {reportData.netIncome >= 0 ? 'الربح (الدخل)' : 'الخسارة'}</span>
+          </div>
+          <span className="relative z-10 text-white text-4xl font-black drop-shadow-md" dir="ltr">
+            {formatConvertedCurrency(reportData.netIncome)}
+          </span>
         </div>
       </div>
     );
@@ -266,159 +305,231 @@ const Reports: React.FC = () => {
   const renderSalesPurchasesTable = (type: string) => {
     if (!reportData || !Array.isArray(reportData)) return null;
     const cols = [
-      { key: 'invoice_number', label: 'رقم الفاتورة' },
-      { key: 'date', label: 'التاريخ' },
-      { key: 'party_name', label: type === 'sales' ? 'العميل' : 'المورد' },
-      { key: 'payment_method', label: 'طريقة الدفع', render: (v: string) => v === 'cash' ? 'نقداً' : v === 'credit' ? 'آجل' : 'جزئي' },
-      { key: 'total', label: 'الإجمالي', render: (v: number, item: any) => <span dir="ltr">{formatConvertedCurrency(v, item.currency || 'IQD')}</span> },
+      { key: 'invoice_number', label: 'رقم الفاتورة', render: (v: string) => <span className="font-bold text-gray-700">#{v}</span> },
+      { key: 'date', label: 'التاريخ', render: (v: string) => <span className="text-gray-600">{v}</span> },
+      { key: 'party_name', label: type === 'sales' ? 'العميل' : 'المورد', render: (v: string) => <span className="font-bold text-primary">{v}</span> },
+      { key: 'payment_method', label: 'طريقة الدفع', render: (v: string) => (
+          <span className={`px-3 py-1 rounded-full text-xs font-bold ${v === 'cash' ? 'bg-green-100 text-green-700' : v === 'credit' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+            {v === 'cash' ? 'نقداً' : v === 'credit' ? 'آجل' : 'جزئي'}
+          </span>
+        ) 
+      },
+      { key: 'total', label: 'الإجمالي', render: (v: number, item: any) => <span className="font-black text-gray-800" dir="ltr">{formatConvertedCurrency(v, item.currency || 'IQD')}</span> },
     ];
-    return <DataTable columns={cols} data={reportData} />;
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-fade-in">
+        <DataTable columns={cols} data={reportData} />
+      </div>
+    );
   };
 
   const renderPurchasePricesTable = () => {
     if (!reportData || !Array.isArray(reportData)) return null;
     const cols = [
-      { key: 'product_name', label: 'اسم الصنف' },
-      { key: 'supplier_name', label: 'المورد', render: (v: string) => v || 'غير محدد' },
-      { key: 'invoice_number', label: 'رقم الفاتورة' },
-      { key: 'date', label: 'التاريخ' },
-      { key: 'quantity', label: 'الكمية' },
-      { key: 'purchase_price', label: 'سعر الشراء', render: (v: number, item: any) => <span dir="ltr" className="font-bold text-primary">{formatConvertedCurrency(v, item.currency || 'IQD')}</span> },
+      { key: 'product_name', label: 'اسم الصنف', render: (v: string) => <span className="font-bold text-gray-800">{v}</span> },
+      { key: 'supplier_name', label: 'المورد', render: (v: string) => <span className="text-primary font-bold">{v || 'غير محدد'}</span> },
+      { key: 'invoice_number', label: 'رقم الفاتورة', render: (v: string) => <span className="text-gray-500">#{v}</span> },
+      { key: 'date', label: 'التاريخ', render: (v: string) => <span className="text-gray-600">{v}</span> },
+      { key: 'quantity', label: 'الكمية', render: (v: number) => <span className="font-bold text-gray-700">{v}</span> },
+      { key: 'purchase_price', label: 'سعر الشراء', render: (v: number, item: any) => <span dir="ltr" className="font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">{formatConvertedCurrency(v, item.currency || 'IQD')}</span> },
     ];
-    return <DataTable columns={cols} data={reportData} />;
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-fade-in">
+        <DataTable columns={cols} data={reportData} />
+      </div>
+    );
   };
 
   const renderInventoryMovement = () => {
     if (!reportData || !Array.isArray(reportData)) return null;
     const cols = [
-      { key: 'product_code', label: 'كود الصنف' },
-      { key: 'product_name', label: 'اسم الصنف' },
-      { key: 'inward', label: 'وارد', render: (v: number) => <span className="text-success font-bold">{v}</span> },
-      { key: 'outward', label: 'منصرف', render: (v: number) => <span className="text-danger font-bold">{v}</span> },
-      { key: 'current_stock', label: 'الرصيد الحالي', render: (v: number) => <span className="font-bold">{v}</span> },
+      { key: 'product_code', label: 'كود الصنف', render: (v: string) => <span className="text-gray-500 font-mono text-sm">{v}</span> },
+      { key: 'product_name', label: 'اسم الصنف', render: (v: string) => <span className="font-bold text-gray-800">{v}</span> },
+      { key: 'inward', label: 'وارد', render: (v: number) => <span className="text-success font-black bg-success/10 px-3 py-1 rounded-lg">+{v}</span> },
+      { key: 'outward', label: 'منصرف', render: (v: number) => <span className="text-danger font-black bg-danger/10 px-3 py-1 rounded-lg">-{v}</span> },
+      { key: 'current_stock', label: 'الرصيد الحالي', render: (v: number) => <span className="font-black text-gray-800 text-lg">{v}</span> },
     ];
-    return <DataTable columns={cols} data={reportData} />;
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-fade-in">
+        <DataTable columns={cols} data={reportData} />
+      </div>
+    );
   };
 
   const renderBalances = () => {
     if (!reportData || !Array.isArray(reportData)) return null;
     const cols = [
-      { key: 'name', label: 'اسم العميل' },
-      { key: 'phone', label: 'الهاتف' },
-      { key: 'current_balance_iqd', label: 'الرصيد (دينار)', render: (v: number) => <span className="text-danger font-bold">{formatCurrency(v || 0, 'IQD')}</span> },
-      { key: 'current_balance_usd', label: 'الرصيد (دولار)', render: (v: number) => <span className="text-danger font-bold">{formatCurrency(v || 0, 'USD')}</span> },
+      { key: 'name', label: 'اسم العميل / المورد', render: (v: string) => <span className="font-bold text-gray-800">{v}</span> },
+      { key: 'phone', label: 'الهاتف', render: (v: string) => <span className="text-gray-600" dir="ltr">{v || '-'}</span> },
+      { key: 'current_balance_iqd', label: 'الرصيد (دينار)', render: (v: number) => (
+          <span className={`font-black ${v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'text-gray-500'}`} dir="ltr">
+            {formatCurrency(v || 0, 'IQD')}
+          </span>
+      )},
+      { key: 'current_balance_usd', label: 'الرصيد (دولار)', render: (v: number) => (
+          <span className={`font-black ${v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'text-gray-500'}`} dir="ltr">
+            {formatCurrency(v || 0, 'USD')}
+          </span>
+      )},
     ];
-    return <DataTable columns={cols} data={reportData} />;
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-fade-in">
+        <DataTable columns={cols} data={reportData} />
+      </div>
+    );
   };
 
   const renderBalanceSheet = () => {
     if (!reportData) return null;
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-6">
-          <div className="bg-bg-main p-6 rounded-2xl">
-            <h4 className="font-bold text-success text-xl mb-6 border-b border-border pb-4">الأصول (الموجودات)</h4>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-white rounded-xl shadow-sm">
-                <span className="text-text-muted">الخزينة النقدية</span>
-                <span className="font-bold text-lg" dir="ltr">{formatConvertedCurrency(reportData.assets.treasury)}</span>
+      <div className="space-y-6 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Assets Card */}
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-1 h-full bg-gradient-to-b from-blue-400 to-indigo-600"></div>
+            <h4 className="font-black text-gray-800 text-lg mb-6 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                <Landmark size={16} />
+              </span>
+              الأصول (الموجودات)
+            </h4>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-4 hover:bg-gray-50 rounded-xl transition-colors border border-gray-100">
+                <span className="font-bold text-gray-600">الخزينة النقدية (الصناديق)</span>
+                <span className="font-black text-gray-900 text-lg" dir="ltr">{formatConvertedCurrency(reportData.assets.treasury)}</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-white rounded-xl shadow-sm">
-                <span className="text-text-muted">قيمة المخزون (بالتكلفة)</span>
-                <span className="font-bold text-lg" dir="ltr">{formatConvertedCurrency(reportData.assets.inventory)}</span>
+              <div className="flex justify-between items-center p-4 hover:bg-gray-50 rounded-xl transition-colors border border-gray-100">
+                <span className="font-bold text-gray-600">قيمة المخزون (بالتكلفة)</span>
+                <span className="font-black text-gray-900 text-lg" dir="ltr">{formatConvertedCurrency(reportData.assets.inventory)}</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-white rounded-xl shadow-sm">
-                <span className="text-text-muted">أرصدة العملاء (مدينون)</span>
-                <span className="font-bold text-lg" dir="ltr">{formatConvertedCurrency(reportData.assets.customers)}</span>
+              <div className="flex justify-between items-center p-4 hover:bg-gray-50 rounded-xl transition-colors border border-gray-100">
+                <span className="font-bold text-gray-600">أرصدة العملاء (مدينون)</span>
+                <span className="font-black text-gray-900 text-lg" dir="ltr">{formatConvertedCurrency(reportData.assets.customers)}</span>
               </div>
-              <div className="flex justify-between items-center p-4 bg-success text-white rounded-xl shadow-md mt-6">
-                <span className="font-bold text-xl">إجمالي الأصول</span>
-                <span className="font-bold text-2xl" dir="ltr">{formatConvertedCurrency(reportData.assets.total)}</span>
+              
+              <div className="flex justify-between items-center p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 mt-6 shadow-inner">
+                <span className="font-black text-indigo-800 text-lg">إجمالي الأصول</span>
+                <span className="font-black text-indigo-700 text-2xl" dir="ltr">{formatConvertedCurrency(reportData.assets.total)}</span>
               </div>
             </div>
           </div>
           
-          <div className="bg-bg-main p-6 rounded-2xl">
-            <h4 className="font-bold text-danger text-xl mb-6 border-b border-border pb-4">الخصوم (الالتزامات)</h4>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-white rounded-xl shadow-sm">
-                <span className="text-text-muted">أرصدة الموردين (دائنون)</span>
-                <span className="font-bold text-lg" dir="ltr">{formatConvertedCurrency(reportData.liabilities.suppliers)}</span>
+          {/* Liabilities Card */}
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-1 h-full bg-gradient-to-b from-orange-400 to-red-600"></div>
+            <h4 className="font-black text-gray-800 text-lg mb-6 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
+                <Users size={16} />
+              </span>
+              الخصوم (الالتزامات)
+            </h4>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-4 hover:bg-gray-50 rounded-xl transition-colors border border-gray-100">
+                <span className="font-bold text-gray-600">أرصدة الموردين (دائنون)</span>
+                <span className="font-black text-gray-900 text-lg" dir="ltr">{formatConvertedCurrency(reportData.liabilities.suppliers)}</span>
               </div>
               
-              <div className="flex justify-between items-center p-4 bg-danger text-white rounded-xl shadow-md mt-6">
-                <span className="font-bold text-xl">إجمالي الالتزامات</span>
-                <span className="font-bold text-2xl" dir="ltr">{formatConvertedCurrency(reportData.liabilities.total)}</span>
+              {/* Empty state filler to align with Assets */}
+              <div className="p-4 border border-transparent opacity-0 pointer-events-none hidden md:block h-[74px]"></div>
+              <div className="p-4 border border-transparent opacity-0 pointer-events-none hidden md:block h-[74px]"></div>
+              
+              <div className="flex justify-between items-center p-5 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl border border-red-100 mt-6 shadow-inner">
+                <span className="font-black text-red-800 text-lg">إجمالي الالتزامات</span>
+                <span className="font-black text-red-700 text-2xl" dir="ltr">{formatConvertedCurrency(reportData.liabilities.total)}</span>
               </div>
             </div>
           </div>
         </div>
         
-        <div className="bg-sidebar-bg text-white p-8 rounded-3xl flex justify-between items-center shadow-xl">
-          <span className="text-2xl font-bold">صافي حقوق الملكية (المركز المالي)</span>
-          <span className="text-4xl font-extrabold" dir="ltr">{formatConvertedCurrency(reportData.assets.total - reportData.liabilities.total)}</span>
+        {/* Net Worth Banner */}
+        <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white p-8 rounded-2xl flex flex-col md:flex-row justify-between items-center shadow-xl border border-gray-700 relative overflow-hidden">
+          <div className="absolute inset-0 bg-white/5 opacity-50"></div>
+          <div className="relative z-10 text-center md:text-right mb-4 md:mb-0">
+            <span className="block text-gray-400 font-bold mb-1">المركز المالي</span>
+            <span className="text-2xl font-black text-white">صافي حقوق الملكية (رأس المال + الأرباح)</span>
+          </div>
+          <div className="relative z-10 text-center md:text-left">
+            <span className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-l from-green-300 to-emerald-400 drop-shadow-md" dir="ltr">
+              {formatConvertedCurrency(reportData.assets.total - reportData.liabilities.total)}
+            </span>
+          </div>
         </div>
       </div>
     );
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-in pb-10">
+      {/* Header Area */}
       <div>
-        <h1 className="text-2xl font-bold text-text-primary mb-2">تقارير النظام</h1>
-        <p className="text-text-muted text-sm">تقارير تحليلية ومحاسبية شاملة لجميع أقسام النظام.</p>
+        <h1 className="text-3xl font-extrabold text-text-primary tracking-tight">التقارير والإحصائيات</h1>
+        <p className="text-text-muted text-sm mt-1">لوحة التحكم الشاملة للتقارير التحليلية والمحاسبية لجميع أقسام النظام.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <ReportCard 
-          title="قائمة الدخل" 
-          description="تقرير مفصل يوضح الإيرادات والمصروفات وصافي الربح خلال فترة زمنية محددة."
-          icon={<TrendingUp />}
-          color="bg-success"
-          onClick={() => openReport('income')}
-        />
-        <ReportCard 
-          title="تقرير المبيعات" 
-          description="تحليل شامل للمبيعات حسب الأصناف، العملاء، والمناديب مع مقارنات بيانية."
-          icon={<BarChart3 />}
-          color="bg-primary"
-          onClick={() => openReport('sales')}
-        />
-        <ReportCard 
-          title="تقرير المشتريات" 
-          description="ملخص للمشتريات من الموردين مع توضيح الدفعات النقدية والآجلة."
-          icon={<ArrowLeftRight />}
-          color="bg-warning"
-          onClick={() => openReport('purchases')}
-        />
-        <ReportCard 
-          title="حركة المخزون" 
-          description="متابعة حركة دخول وخروج الأصناف من المخازن وتحديد الرواكد."
-          icon={<PieIcon />}
-          color="bg-accent"
-          onClick={() => openReport('inventory')}
-        />
-        <ReportCard 
-          title="أرصدة العملاء" 
-          description="كشف تفصيلي بأرصدة العملاء والمديونيات المتأخرة وأعمار الديون."
-          icon={<Users />}
-          color="bg-danger"
-          onClick={() => openReport('balances')}
-        />
-        <ReportCard 
-          title="الميزانية العمومية" 
-          description="ملخص للأصول والالتزامات وحقوق الملكية للشركة في لحظة زمنية معينة."
-          icon={<Landmark size={28} />}
-          color="bg-sidebar-bg"
-          onClick={() => openReport('balance_sheet')}
-        />
-        <ReportCard 
-          title="كشف تغير الأسعار" 
-          description="مقارنة أسعار شراء الأصناف من موردين مختلفين عبر فترات زمنية لمعرفة تغيرات السعر."
-          icon={<ArrowLeftRight />}
-          color="bg-warning"
-          onClick={() => openReport('purchase_prices')}
-        />
+        {hasPermission(user?.role || 'user', 'reports.income') && (
+          <ReportCard 
+            title="قائمة الدخل" 
+            description="تقرير مفصل يوضح الإيرادات والمصروفات وصافي الربح خلال فترة زمنية محددة."
+            icon={<TrendingUp />}
+            color="bg-success"
+            onClick={() => openReport('income')}
+          />
+        )}
+        {hasPermission(user?.role || 'user', 'reports.sales') && (
+          <ReportCard 
+            title="تقرير المبيعات" 
+            description="تحليل شامل للمبيعات حسب الأصناف، العملاء، والمناديب مع مقارنات بيانية."
+            icon={<BarChart3 />}
+            color="bg-primary"
+            onClick={() => openReport('sales')}
+          />
+        )}
+        {hasPermission(user?.role || 'user', 'reports.purchases') && (
+          <ReportCard 
+            title="تقرير المشتريات" 
+            description="ملخص للمشتريات من الموردين مع توضيح الدفعات النقدية والآجلة."
+            icon={<ArrowLeftRight />}
+            color="bg-warning"
+            onClick={() => openReport('purchases')}
+          />
+        )}
+        {hasPermission(user?.role || 'user', 'reports.inventory') && (
+          <ReportCard 
+            title="حركة المخزون" 
+            description="متابعة حركة دخول وخروج الأصناف من المخازن وتحديد الرواكد."
+            icon={<PieIcon />}
+            color="bg-accent"
+            onClick={() => openReport('inventory')}
+          />
+        )}
+        {hasPermission(user?.role || 'user', 'reports.balances') && (
+          <ReportCard 
+            title="أرصدة العملاء" 
+            description="كشف تفصيلي بأرصدة العملاء والمديونيات المتأخرة وأعمار الديون."
+            icon={<Users />}
+            color="bg-danger"
+            onClick={() => openReport('balances')}
+          />
+        )}
+        {hasPermission(user?.role || 'user', 'reports.balance_sheet') && (
+          <ReportCard 
+            title="الميزانية العمومية" 
+            description="ملخص للأصول والالتزامات وحقوق الملكية للشركة في لحظة زمنية معينة."
+            icon={<Landmark size={28} />}
+            color="bg-sidebar-bg"
+            onClick={() => openReport('balance_sheet')}
+          />
+        )}
+        {hasPermission(user?.role || 'user', 'reports.purchase_prices') && (
+          <ReportCard 
+            title="كشف تغير الأسعار" 
+            description="مقارنة أسعار شراء الأصناف من موردين مختلفين عبر فترات زمنية لمعرفة تغيرات السعر."
+            icon={<ArrowLeftRight />}
+            color="bg-warning"
+            onClick={() => openReport('purchase_prices')}
+          />
+        )}
       </div>
 
       {activeReport && (
@@ -500,13 +611,13 @@ const Reports: React.FC = () => {
                       .replace('{{company_name}}', settings?.company_name || 'اسم الشركة')
                       .replace('{{company_address}}', settings?.address || '')
                       .replace('{{company_phone}}', settings?.phone || '')
-                      .replace('{{tax_number_html}}', settings?.tax_number ? `<p style="margin: 5px 0 0; color: #666; font-size: 14px;">الرقم الضريبي: ${settings.tax_number}</p>` : '')
-                      .replace('{{logo_img}}', settings?.print_show_logo !== 'false' && settings?.logo ? `<img src="${settings.logo}" style="height: ${settings?.reports_logo_size || 60}px; object-fit: contain;" />` : '')
+                      .replace('{{tax_number_html}}', settings?.tax_number ? `<p style="margin: 5px 0 0; color: #000; font-size: 14px;">الرقم الضريبي: ${settings.tax_number}</p>` : '')
+                      .replace('{{logo_img}}', settings?.print_show_logo !== 'false' && settings?.logo ? `<img src="${settings.logo}" style="height: ${settings?.reports_logo_size || 120}px; object-fit: contain;" />` : '')
                       .replace('{{report_title}}', activeReportTitle)
                       .replace('{{date}}', new Date().toLocaleDateString('ar-IQ'))
                       .replace('{{start_date}}', startDate || '-')
                       .replace('{{end_date}}', endDate || '-')
-                      .replace('{{footer_text_html}}', settings?.reports_footer_text ? `<div style="margin-top: 30px; text-align: center; font-size: 14px; color: #64748b; background-color: #f8fafc; padding: 15px; border-radius: 8px;">${settings.reports_footer_text}</div>` : '');
+                      .replace('{{footer_text_html}}', settings?.reports_footer_text ? `<div style="margin-top: 16px; text-align: center; font-size: 14px; font-weight: bold; padding: 12px; border: 1px solid #000; color: #000;">${settings.reports_footer_text}</div>` : '');
 
                     const parts = htmlString.split('{{report_content}}');
                     headerHtml = parts[0] || '';
@@ -514,9 +625,9 @@ const Reports: React.FC = () => {
                   }
 
                   return (
-                    <div className={settings?.reports_template_type === 'custom' ? 'print-area-view print:p-8 print:bg-white text-black font-cairo' : ''} dir="rtl">
+                    <div className={settings?.reports_template_type === 'custom' ? 'print-area-view print:bg-white text-black font-cairo' : ''} dir="rtl">
                       {settings?.reports_template_type === 'custom' ? (
-                        <div dangerouslySetInnerHTML={{ __html: headerHtml }} className="hidden print:block mb-6" />
+                        <div dangerouslySetInnerHTML={{ __html: headerHtml }} className="hidden print:block" />
                       ) : (
                         <div className="hidden print:block mb-8 text-center">
                           <h2 className="text-2xl font-bold mb-2">
@@ -536,7 +647,7 @@ const Reports: React.FC = () => {
                       {activeReport === 'purchase_prices' && renderPurchasePricesTable()}
                       
                       {settings?.reports_template_type === 'custom' && (
-                        <div dangerouslySetInnerHTML={{ __html: footerHtml }} className="hidden print:block mt-6" />
+                        <div dangerouslySetInnerHTML={{ __html: footerHtml }} className="hidden print:block" />
                       )}
                     </div>
                   );

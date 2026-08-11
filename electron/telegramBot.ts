@@ -1,5 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { getDb } from '../database/db';
+import { db as realtimeDb } from './firebaseConfig';
+import { ref, set, onChildAdded, remove } from 'firebase/database';
 
 let bot: TelegramBot | null = null;
 let currentToken: string | null = null;
@@ -82,24 +84,72 @@ export async function initTelegramBot() {
       if (bot) {
         await bot.stopPolling();
       }
-      bot = new TelegramBot(telegram_bot_token, { polling: true });
+      // إيقاف الـ Polling لتجنب التعارض
+      bot = new TelegramBot(telegram_bot_token, { polling: false });
       
-      bot.on('polling_error', (error: any) => {
-        if (error.code === 'EFATAL') {
-          // Suppress repetitive fetch failed errors when offline or API blocked
-        } else {
-          console.error('Telegram Bot Polling Error:', error.message || error);
+      // التعديل السحري لتجاوز حظر تيليجرام: 
+      // توجيه كل رسائل البوت إلى سيرفر Vercel بدلاً من تيليجرام مباشرة
+      bot.sendMessage = async (chatId: any, text: string, options?: any) => {
+        try {
+          const response = await fetch('https://firebase-bot-webhook.vercel.app/sendReply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId, text, options })
+          });
+          if (!response.ok) {
+            console.error('Failed to send message via Vercel Proxy:', await response.text());
+          }
+          return {} as any; // Dummy return
+        } catch (error) {
+          console.error('Error connecting to Vercel Proxy:', error);
+          return {} as any;
         }
-      });
-      
+      };
+
       currentToken = telegram_bot_token;
-      console.log('Telegram Bot started.');
+      console.log('Telegram Bot started (Firebase Mode).');
 
       setupBotCommands(bot);
 
+      // --- Firebase Integration (Realtime DB) ---
+      if (settings.company_id) {
+        try {
+          // تسجيل الشركة في سيرفر Firebase
+          const activeCompanyRef = ref(realtimeDb, `active_companies/${settings.company_id}`);
+          await set(activeCompanyRef, { active: true, name: settings.name || 'Company', updated_at: Date.now() });
+
+          // التنصت على الطلبات الواردة من Firebase
+          const commandsRef = ref(realtimeDb, `company_requests/${settings.company_id}/commands`);
+          
+          onChildAdded(commandsRef, async (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+            const key = snapshot.key;
+            
+            // تحويل الطلب إلى رسالة تيليجرام وهمية لتمريرها للكود الحالي
+            const mockMsg = {
+              message_id: Math.floor(Math.random() * 1000000),
+              chat: { id: parseInt(data.chat_id), type: 'private' },
+              text: data.text,
+              date: Math.floor(Date.now() / 1000)
+            };
+            
+            try {
+              bot?.processUpdate({ update_id: Math.floor(Math.random() * 1000000), message: mockMsg as any });
+            } catch(e) { console.error(e); }
+
+            // حذف الطلب بعد تنفيذه
+            await remove(ref(realtimeDb, `company_requests/${settings.company_id}/commands/${key}`));
+          });
+        } catch (e) {
+          console.error("Firebase connection error: ", e);
+        }
+      }
+      // ----------------------------
+
       // Notify the configured chat ID that the bot is online
       if (telegram_chat_id) {
-        bot.sendMessage(telegram_chat_id, '✅ النظام يعمل الآن، البوت متصل. أرسل /start لعرض القائمة.').catch(e => console.error("Could not send startup message", e));
+        bot.sendMessage(telegram_chat_id, '🟢 تم تشغيل النظام وبوت تليجرام يعمل الآن. اكتب /start لعرض القائمة.').catch(_e => console.log("تنبيه: لم يتمكن البوت من إرسال رسالة البدء (محجوب أو لا يوجد إنترنت)."));
       }
     }
   } catch (error) {
@@ -130,6 +180,9 @@ function getMainMenuKeyboard(settings: any) {
   // Add Detailed Menu Button
   keyboard.push([{ text: '📄 كشف تفصيلي' }]);
 
+  // Add Technical Support Button
+  keyboard.push([{ text: '📞 الدعم الفني' }]);
+
   return {
     reply_markup: {
       keyboard: keyboard,
@@ -155,10 +208,13 @@ function getDetailedMenuKeyboard(settings: any) {
   if (settings.telegram_balance_sheet) row.push({ text: '⚖️ الميزانية العمومية' });
   if (row.length === 2) { keyboard.push(row); row = []; }
   
-  if (settings.telegram_purchase_prices) row.push({ text: '🏷️ كشف تغيير الأسعار' });
-  if (row.length > 0) { keyboard.push(row); }
+  if (settings.telegram_purchase_prices) row.push({ text: '📑 تقرير تغير أسعار الموردين' });
+  row.push({ text: '📦 تقرير الكميات المتبقية في المخزن' });
+  if (row.length > 0) { keyboard.push(row); row = []; }
 
-  keyboard.push([{ text: '🔙 رجوع للقائمة الرئيسية' }]);
+  keyboard.push([{ text: '💰 تقرير الخزينة والصناديق' }, { text: '🛠️ تقرير المعدات والأصول' }]);
+  
+  keyboard.push([{ text: '🔙 العودة للقائمة الرئيسية' }]);
 
   return {
     reply_markup: {
@@ -214,7 +270,7 @@ function getDateSelectionKeyboard() {
 function setupBotCommands(bot: TelegramBot) {
   const commandsList = [];
   commandsList.push({ command: 'start', description: 'عرض القائمة الرئيسية' });
-  bot.setMyCommands(commandsList).catch(e => console.error("Error setting bot commands:", e));
+  // bot.setMyCommands(commandsList).catch(e => console.log("تنبيه: لم يتمكن البوت من الاتصال بتليجرام (قد يكون محجوباً أو لا يوجد إنترنت)."));
 
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
@@ -222,13 +278,10 @@ function setupBotCommands(bot: TelegramBot) {
     const settings = await db.get('SELECT * FROM company_settings LIMIT 1');
     if (!settings) return;
 
-    if (settings.telegram_chat_id && settings.telegram_chat_id !== String(chatId)) {
-       return bot.sendMessage(chatId, '⛔ غير مصرح لك باستخدام هذا البوت.');
-    }
-    
     userStates[chatId] = { step: 'MAIN_MENU' };
-    const welcomeMsg = `📦 مرحبآ بك في نظام المخزن برو \n🏢 هذا البوت مخصص الى شركة الاسرة (ادارة المخازن)\n💻 تم التطوير البوت : المطور برو الحلول البرمجية\n🌐 الموقع الاكتروني https://pro.iqa5.site/\n✅ الرجاء اختيار أحد التقارير من القائمة :`;
-    bot.sendMessage(chatId, welcomeMsg, getMainMenuKeyboard(settings));
+    const companyName = settings.name || 'شركتك';
+    const welcomeMsg = `✨ مرحباً بك في نظام إدارة المخازن ✨\n🏢 الخاص بـ: ${companyName}\n\n👨‍💻 تطوير: المطور برو الحلول البرمجية\n🌐 الموقع: https://pro.iqa5.site/\n\n👇 الرجاء اختيار أحد التقارير من القائمة:`;
+    return bot.sendMessage(chatId, welcomeMsg, getMainMenuKeyboard(settings));
   });
 
   bot.on('message', async (msg) => {
@@ -241,20 +294,16 @@ function setupBotCommands(bot: TelegramBot) {
     const settings = await db.get('SELECT * FROM company_settings LIMIT 1');
     if (!settings) return;
 
-    if (settings.telegram_chat_id && settings.telegram_chat_id !== String(chatId)) {
-        bot.sendMessage(chatId, '⛔ المعذرة، غير مصرح لك بطلب التقارير.');
-        return;
-    }
-
     if (!userStates[chatId]) {
       userStates[chatId] = { step: 'MAIN_MENU' };
     }
 
     const state = userStates[chatId];
+
     const today = getTodayDateString();
 
     // 1. Navigation
-    if (text === '🔙 رجوع للقائمة الرئيسية') {
+    if (text === '🔙 رجوع للقائمة الرئيسية' || text === '🔙 العودة للقائمة الرئيسية') {
       state.step = 'MAIN_MENU';
       return bot.sendMessage(chatId, 'تم العودة للقائمة الرئيسية.', getMainMenuKeyboard(settings));
     }
@@ -281,6 +330,19 @@ function setupBotCommands(bot: TelegramBot) {
       return bot.sendMessage(chatId, 'اختر التقرير التفصيلي الذي تريده:', getDetailedMenuKeyboard(settings));
     }
 
+    if (text === '📞 الدعم الفني') {
+      return bot.sendMessage(chatId, 'تواصل معنا أو انضم لمجتمعنا عبر الروابط التالية:', {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '📢 القناة', url: 'https://t.me/prosastam1' },
+              { text: '👥 الكروب', url: 'https://t.me/prosastam2' }
+            ]
+          ]
+        }
+      });
+    }
+
     // 2. Main Menu Quick Reports
     if (state.step === 'MAIN_MENU') {
       if (text === '📊 مبيعات اليوم' || text === '/sales') return sendSalesReport(chatId, today, today, db, settings);
@@ -297,7 +359,7 @@ function setupBotCommands(bot: TelegramBot) {
 
     // 3. Detailed Menu Selection
     if (state.step === 'DETAILED_MENU') {
-      if (text === '🏷️ كشف تغيير الأسعار') {
+      if (text === '📑 تقرير تغير أسعار الموردين') {
         state.step = 'PRICE_VARIATIONS_MENU';
         return bot.sendMessage(chatId, 'اختر نوع كشف تغير الأسعار:', getPriceVariationsKeyboard());
       }
@@ -305,8 +367,10 @@ function setupBotCommands(bot: TelegramBot) {
       // Some reports don't need dates (like Customer Balances and Balance Sheet)
       if (text === '👥 أرصدة العملاء') return sendCustomersReport(chatId, db, settings);
       if (text === '⚖️ الميزانية العمومية') return sendBalanceSheet(chatId, db, settings);
+      if (text === '💰 تقرير الخزينة والصناديق') return sendTreasuryReport(chatId, db, settings);
+      if (text === '🛠️ تقرير المعدات والأصول') return sendEquipmentReport(chatId, db, settings);
 
-      const requiresDate = ['📊 مبيعات تفصيلي', '💰 دخل تفصيلي', '🛒 مشتريات تفصيلي', '🔄 حركة المخزون'].includes(text);
+      const requiresDate = ['📊 مبيعات تفصيلي', '💰 دخل تفصيلي', '🛒 مشتريات تفصيلي', '🔄 حركة المخزون', '📦 تقرير الكميات المتبقية في المخزن'].includes(text);
       if (requiresDate) {
         state.step = 'DATE_SELECTION';
         state.reportType = text;
@@ -395,6 +459,7 @@ function setupBotCommands(bot: TelegramBot) {
     else if (reportType === '💰 دخل تفصيلي') await sendIncomeStatement(chatId, start, end, db, settings);
     else if (reportType === '🛒 مشتريات تفصيلي') await sendPurchasesReport(chatId, start, end, db, settings);
     else if (reportType === '🔄 حركة المخزون') await sendInventoryMovement(chatId, start, end, db, settings);
+    else if (reportType === '📦 تقرير الكميات المتبقية في المخزن') await sendRemainingQuantitiesReport(chatId, start, end, db, settings);
     else if (reportType === '📋 كشف جميع المواد') await sendPriceVariationsReport(chatId, start, end, null, db, settings);
     else if (reportType === '🔍 كشف سعر مادة') await sendPriceVariationsReport(chatId, start, end, state.itemName || null, db, settings);
 
@@ -413,7 +478,7 @@ function setupBotCommands(bot: TelegramBot) {
     if (!settings.telegram_sales_report) return bot.sendMessage(chatId, '⚠️ تقرير المبيعات غير مفعل.');
     try {
       const sales = await db.all(`
-        SELECT i.invoice_number, i.total, i.currency, i.date, p.name as party_name
+        SELECT i.id, i.invoice_number, i.total, i.currency, i.date, p.name as party_name
         FROM invoices i LEFT JOIN parties p ON i.party_id = p.id
         WHERE i.type = 'sale' AND i.date BETWEEN ? AND ?
         ORDER BY i.date ASC
@@ -421,11 +486,37 @@ function setupBotCommands(bot: TelegramBot) {
       
       let reply = `📊 *تقرير المبيعات*\nمن ${start} إلى ${end}\n\n`;
       let totalSales = 0;
-      sales.forEach((s: any) => {
-        reply += `- [${s.date}] ${s.invoice_number}: ${formatNum(s.total)} ${s.currency} (${s.party_name || 'نقدي'})\n`;
+      
+      for (const s of sales) {
+        const items = await db.all(`
+          SELECT ii.quantity, pr.name as product_name
+          FROM invoice_items ii
+          LEFT JOIN products pr ON ii.product_id = pr.id
+          WHERE ii.invoice_id = ?
+        `, [s.id]);
+
+        reply += `📅 التاريخ: ${s.date}\n`;
+        reply += `👤 اسم العميل: ${s.party_name || 'نقدي'}\n`;
+        reply += `🧾 رقم الفاتورة: ${s.invoice_number}\n`;
+        
+        if (items && items.length > 0) {
+          reply += `📦 الأصناف والكميات:\n`;
+          items.forEach((it: any) => {
+            reply += `   - ${it.product_name || 'غير معروف'} (الكمية: ${it.quantity})\n`;
+          });
+        }
+        
+        reply += `💰 الاجمالي: ${formatNum(s.total)} ${s.currency}\n`;
+        reply += `-------------------------\n`;
         totalSales += s.total;
-      });
-      reply += `\n*الإجمالي للفترة: ${formatNum(totalSales)}*`;
+      }
+
+      if (sales.length === 0) {
+        reply += `لا توجد مبيعات في هذه الفترة.\n`;
+      } else {
+        reply += `\n*الإجمالي الكلي للفترة: ${formatNum(totalSales)}*`;
+      }
+
       bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
     } catch (e) {
       bot.sendMessage(chatId, '❌ حدث خطأ أثناء جلب تقرير المبيعات.');
@@ -456,7 +547,7 @@ function setupBotCommands(bot: TelegramBot) {
     if (!settings.telegram_purchases_report) return bot.sendMessage(chatId, '⚠️ تقرير المشتريات غير مفعل.');
     try {
       const purchases = await db.all(`
-        SELECT i.invoice_number, i.total, i.currency, i.date, p.name as party_name
+        SELECT i.id, i.invoice_number, i.total, i.currency, i.date, i.buyer_name, p.name as party_name, p.phone as party_phone
         FROM invoices i LEFT JOIN parties p ON i.party_id = p.id
         WHERE i.type = 'purchase' AND i.date BETWEEN ? AND ?
         ORDER BY i.date ASC
@@ -464,11 +555,39 @@ function setupBotCommands(bot: TelegramBot) {
       
       let reply = `🛒 *تقرير المشتريات*\nمن ${start} إلى ${end}\n\n`;
       let totalPurchases = 0;
-      purchases.forEach((s: any) => {
-        reply += `- [${s.date}] ${s.invoice_number}: ${formatNum(s.total)} ${s.currency} (${s.party_name || 'نقدي'})\n`;
+      
+      for (const s of purchases) {
+        const items = await db.all(`
+          SELECT ii.quantity, ii.unit_price, pr.name as product_name
+          FROM invoice_items ii
+          LEFT JOIN products pr ON ii.product_id = pr.id
+          WHERE ii.invoice_id = ?
+        `, [s.id]);
+
+        reply += `📅 التاريخ: ${s.date}\n`;
+        reply += `🏢 اسم المورد: ${s.party_name || 'نقدي'}\n`;
+        reply += `📞 رقم الهاتف: ${s.party_phone || 'غير متوفر'}\n`;
+        reply += `👤 اسم المشتري: ${s.buyer_name || 'غير متوفر'}\n`;
+        reply += `🧾 رقم الفاتورة: ${s.invoice_number}\n`;
+        
+        if (items && items.length > 0) {
+          reply += `📦 الأصناف والكميات:\n`;
+          items.forEach((it: any) => {
+            reply += `   - ${it.product_name || 'غير معروف'} (الكمية: ${it.quantity} | السعر: ${formatNum(it.unit_price)})\n`;
+          });
+        }
+        
+        reply += `💰 الاجمالي: ${formatNum(s.total)} ${s.currency}\n`;
+        reply += `-------------------------\n`;
         totalPurchases += s.total;
-      });
-      reply += `\n*الإجمالي للفترة: ${formatNum(totalPurchases)}*`;
+      }
+
+      if (purchases.length === 0) {
+        reply += `لا توجد مشتريات في هذه الفترة.\n`;
+      } else {
+        reply += `\n*الإجمالي الكلي للفترة: ${formatNum(totalPurchases)}*`;
+      }
+
       bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
     } catch (e) {
       bot.sendMessage(chatId, '❌ حدث خطأ أثناء جلب المشتريات.');
@@ -496,6 +615,54 @@ function setupBotCommands(bot: TelegramBot) {
       bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
     } catch (e) {
       bot.sendMessage(chatId, '❌ حدث خطأ أثناء جلب حركة المخزون.');
+    }
+  }
+
+  async function sendRemainingQuantitiesReport(chatId: number, start: string, end: string, db: any, _settings: any) {
+    try {
+      const remaining = await db.all(`
+        SELECT p.name, 
+               p.current_stock,
+               p.is_initial,
+               COALESCE(SUM(CASE WHEN i.type = 'purchase' OR i.type = 'sale_return' THEN ii.quantity ELSE 0 END), 0) as inward_after,
+               COALESCE(SUM(CASE WHEN i.type = 'sale' OR i.type = 'purchase_return' THEN ii.quantity ELSE 0 END), 0) as outward_after
+        FROM products p
+        LEFT JOIN invoice_items ii ON p.id = ii.product_id
+        LEFT JOIN invoices i ON ii.invoice_id = i.id AND i.date > ?
+        GROUP BY p.id
+      `, [end]);
+      
+      let finalProducts = '';
+      let initialProducts = '';
+      let totalItems = 0;
+      
+      for (const r of remaining) {
+        const stockAtEnd = r.current_stock - r.inward_after + r.outward_after;
+        if (stockAtEnd > 0) {
+          totalItems++;
+          const line = `- ${r.name}: ${formatNum(stockAtEnd)}\n`;
+          if (r.is_initial === 1) initialProducts += line;
+          else finalProducts += line;
+        }
+      }
+      
+      if (totalItems === 0) {
+        return await bot.sendMessage(chatId, "لا توجد كميات متبقية في المخزن (الأرصدة صفر).\n");
+      }
+      
+      if (finalProducts) {
+        let reply1 = `📦 *المنتجات النهائية الجاهزة للبيع*\nكما في تاريخ ${end}\n\n${finalProducts}`;
+        if (reply1.length > 3500) reply1 = reply1.substring(0, 3500) + '... (تم اقتصاص الباقي)';
+        await bot.sendMessage(chatId, reply1, { parse_mode: 'Markdown' });
+      }
+      
+      if (initialProducts) {
+        let reply2 = `🧱 *المواد الخام والأرصدة الأولية*\nكما في تاريخ ${end}\n\n${initialProducts}`;
+        if (reply2.length > 3500) reply2 = reply2.substring(0, 3500) + '... (تم اقتصاص الباقي)';
+        await bot.sendMessage(chatId, reply2, { parse_mode: 'Markdown' });
+      }
+    } catch (e) {
+      bot.sendMessage(chatId, '❌ حدث خطأ أثناء جلب تقرير الكميات المتبقية.');
     }
   }
 
@@ -578,6 +745,39 @@ function setupBotCommands(bot: TelegramBot) {
       bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
     } catch (e) {
       bot.sendMessage(chatId, '❌ حدث خطأ أثناء جلب كشف تغير الأسعار.');
+    }
+  }
+
+  async function sendTreasuryReport(chatId: number, db: any, settings: any) {
+    try {
+      const iqd = await db.get(`SELECT SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) - SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as balance FROM treasury_transactions WHERE currency = 'IQD'`);
+      const usd = await db.get(`SELECT SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) - SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as balance FROM treasury_transactions WHERE currency = 'USD'`);
+      
+      let reply = `💰 *تقرير الخزينة والصناديق الحالي*\n\n`;
+      reply += `🇮🇶 الرصيد بالدينار (IQD): ${formatNum(iqd?.balance || 0)}\n`;
+      reply += `💵 الرصيد بالدولار (USD): ${formatNum(usd?.balance || 0)}\n`;
+      bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+    } catch (e) {
+      bot.sendMessage(chatId, '❌ حدث خطأ أثناء جلب تقرير الخزينة.');
+    }
+  }
+
+  async function sendEquipmentReport(chatId: number, db: any, settings: any) {
+    try {
+      const count = await db.get(`SELECT COUNT(*) as total_equipments, SUM(total_qty) as total_qty, SUM(available_qty) as available_qty FROM equipments`);
+      
+      let reply = `🛠️ *ملخص المعدات والأصول*\n\n`;
+      if (!count || count.total_equipments === 0) {
+        reply += "لا توجد معدات مسجلة حالياً.";
+      } else {
+        reply += `📌 إجمالي أنواع المعدات المسجلة: ${formatNum(count.total_equipments)}\n`;
+        reply += `📦 إجمالي الكميات: ${formatNum(count.total_qty)}\n`;
+        reply += `✅ المتاح منها حالياً: ${formatNum(count.available_qty)}\n`;
+        reply += `❌ المعار أو قيد الاستخدام: ${formatNum(count.total_qty - count.available_qty)}\n`;
+      }
+      bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+    } catch (e) {
+      bot.sendMessage(chatId, '❌ حدث خطأ أثناء جلب إحصائيات المعدات.');
     }
   }
 }

@@ -81,7 +81,7 @@ export function initReportsIpc() {
 
     query += ` ORDER BY i.date DESC`;
     
-    return await db.all(query, ...params);
+    return await db.all(query, params);
   });
 
   ipcMain.handle('reports:getInventoryMovement', async (_, { startDate, endDate }) => {

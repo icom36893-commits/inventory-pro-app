@@ -7,7 +7,7 @@ export function initUsersIpc() {
     const db = await getDb();
     
     const user = await db.get(
-      'SELECT id, name, username, password_hash, role, is_active, profile_image FROM users WHERE username = ?',
+      'SELECT id, name, username, password_hash, role, is_active, profile_image, mobile_permission FROM users WHERE username = ?',
       [username]
     );
 
@@ -42,13 +42,13 @@ export function initUsersIpc() {
     }
 
     // Don't send the hash back to the frontend
-    const { password_hash, profile_image, ...safeUser } = user;
+    const { password_hash: _password_hash, profile_image, ...safeUser } = user;
     return { ...safeUser, profileImage: profile_image };
   });
 
   ipcMain.handle('users:getAll', async () => {
     const db = await getDb();
-    return await db.all('SELECT id, name, username, role, is_active, created_at, profile_image FROM users');
+    return await db.all('SELECT id, name, username, role, is_active, created_at, profile_image, mobile_permission FROM users');
   });
 
   ipcMain.handle('users:create', async (_, data) => {
@@ -63,8 +63,8 @@ export function initUsersIpc() {
     const hashedPassword = await bcrypt.hash(data.password, 10);
     
     const result = await db.run(
-      `INSERT INTO users (name, username, password_hash, role) VALUES (?, ?, ?, ?)`,
-      [data.full_name || data.name, data.username, hashedPassword, data.role || 'user']
+      `INSERT INTO users (name, username, password_hash, role, mobile_permission) VALUES (?, ?, ?, ?, ?)`,
+      [data.full_name || data.name, data.username, hashedPassword, data.role || 'user', data.mobile_permission || 'full']
     );
     return result.lastID;
   });
@@ -92,13 +92,13 @@ export function initUsersIpc() {
     if (data.password) {
       const hashedPassword = await bcrypt.hash(data.password, 10);
       await db.run(
-        `UPDATE users SET name = ?, username = ?, password_hash = ?, role = ?, profile_image = ? WHERE id = ?`,
-        [data.full_name || data.name, data.username, hashedPassword, data.role || 'user', data.profile_image || data.profileImage, data.id]
+        `UPDATE users SET name = ?, username = ?, password_hash = ?, role = ?, profile_image = ?, mobile_permission = ? WHERE id = ?`,
+        [data.full_name || data.name, data.username, hashedPassword, data.role || 'user', data.profile_image || data.profileImage, data.mobile_permission || 'full', data.id]
       );
     } else {
       await db.run(
-        `UPDATE users SET name = ?, username = ?, role = ?, profile_image = ? WHERE id = ?`,
-        [data.full_name || data.name, data.username, data.role || 'user', data.profile_image || data.profileImage, data.id]
+        `UPDATE users SET name = ?, username = ?, role = ?, profile_image = ?, mobile_permission = ? WHERE id = ?`,
+        [data.full_name || data.name, data.username, data.role || 'user', data.profile_image || data.profileImage, data.mobile_permission || 'full', data.id]
       );
     }
     return true;

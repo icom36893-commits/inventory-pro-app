@@ -12,7 +12,7 @@ export const customerSupplierSchema = z.object({
 
 export const productSchema = z.object({
   name: z.string().min(2, 'اسم الصنف يجب أن يحتوي على حرفين على الأقل'),
-  code: z.string().min(1, 'كود الصنف مطلوب'),
+  code: z.string().optional().nullable().or(z.literal('')),
   purchase_price: z.number().min(0, 'سعر الشراء لا يمكن أن يكون سالباً').default(0),
   sale_price: z.number().min(0, 'سعر البيع لا يمكن أن يكون سالباً'),
   currency: z.string().optional().nullable().or(z.literal('')),
