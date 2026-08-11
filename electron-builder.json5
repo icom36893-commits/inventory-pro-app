@@ -2,6 +2,11 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.inventorypro.app",
   "productName": "المخزون برو",
+  "publish": {
+    "provider": "github",
+    "owner": "icom36893-commits",
+    "repo": "inventory-pro-app"
+  },
   "asar": true,
   "npmRebuild": false,
   "directories": {
